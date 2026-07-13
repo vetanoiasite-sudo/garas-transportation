@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import type { Role } from "@/lib/types";
+import { AUTH_COOKIE } from "@/lib/auth";
 
 export interface User {
   name: string;
@@ -20,7 +21,22 @@ interface AuthCtx {
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
-const STORAGE_KEY = "garas.auth";
+
+/** Auth is stored in a cookie (not localStorage) so the server can read the
+ *  session during SSR and render the correct page directly — no loading
+ *  spinner and no client-side redirect flash on first paint.
+ *  The cookie name lives in "@/lib/auth" so Server Components can import it. */
+const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+
+function writeCookie(user: User | null) {
+  if (typeof document === "undefined") return;
+  if (user) {
+    const value = encodeURIComponent(JSON.stringify(user));
+    document.cookie = `${AUTH_COOKIE}=${value}; path=/; max-age=${MAX_AGE}; samesite=lax`;
+  } else {
+    document.cookie = `${AUTH_COOKIE}=; path=/; max-age=0; samesite=lax`;
+  }
+}
 
 const nameByRole: Record<Role, string> = {
   system_admin: "أحمد النظام",
@@ -31,28 +47,20 @@ const nameByRole: Record<Role, string> = {
   reader: "قارئ",
 };
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
-  }, []);
+export function AuthProvider({
+  initialUser = null,
+  children,
+}: {
+  initialUser?: User | null;
+  children: React.ReactNode;
+}) {
+  // Seeded from the cookie by the server, so the first render already knows
+  // the auth state — hence `ready` is true immediately (no spinner flash).
+  const [user, setUser] = useState<User | null>(initialUser);
 
   const persist = useCallback((u: User | null) => {
     setUser(u);
-    try {
-      if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    writeCookie(u);
   }, []);
 
   const login = useCallback(
@@ -81,11 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const next: User = prev
           ? { ...prev, role, name: nameByRole[role] }
           : { name: nameByRole[role], email: "demo@garas.co", role, branch: "الفرع الرئيسي", token: "mock-token" };
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch {
-          /* ignore */
-        }
+        writeCookie(next);
         return next;
       });
     },
@@ -93,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <Ctx.Provider value={{ user, ready, login, logout, setRole }}>
+    <Ctx.Provider value={{ user, ready: true, login, logout, setRole }}>
       {children}
     </Ctx.Provider>
   );
