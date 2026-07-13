@@ -1,0 +1,190 @@
+/* ============================================================================
+   Design Tokens — Garas Employee Transportation Management System
+   Source: Figma "Design System Arabic" (Flowbite / Tailwind v4 palette)
+   Extracted variables (authoritative):
+     text-heading #101828 · text-body #4a5565 · fg-brand #1447e6 ·
+     fg-brand-strong #1c398e · border-base #e5e7eb · border-brand-subtle #bedbff ·
+     bg-brand-softer #eef6ff · radius base 12 / sm 6 · shadows sm/base/lg
+   Business direction: navy-centric light UI, RTL-first.
+   ========================================================================= */
+
+:root {
+  /* ---- Brand blue (Flowbite / Tailwind v4) ---- */
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bedbff;
+  --blue-300: #8ec5ff;
+  --blue-400: #51a2ff;
+  --blue-500: #2b7fff;
+  --blue-600: #155dfc;
+  --blue-700: #1447e6;
+  --blue-800: #193cb8;
+  --blue-900: #1c398e;
+  --blue-950: #162456;
+
+  /* ---- Gray scale ---- */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5dc;
+  --gray-400: #99a1af;
+  --gray-500: #6a7282;
+  --gray-600: #4a5565;
+  --gray-700: #364153;
+  --gray-800: #1f2a37;
+  --gray-900: #101828;
+  --gray-950: #030712;
+
+  /* ---- Semantic status colors ---- */
+  --green-50: #f0fdf4;
+  --green-100: #dcfce7;
+  --green-500: #00c950;
+  --green-600: #00a63e;
+  --green-700: #008236;
+  --green-800: #016630;
+
+  --red-50: #fef2f2;
+  --red-100: #ffe2e2;
+  --red-500: #fb2c36;
+  --red-600: #e7000b;
+  --red-700: #c10007;
+  --red-800: #9f0712;
+
+  --amber-50: #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-400: #ffb900;
+  --amber-500: #fe9a00;
+  --amber-600: #e17100;
+  --amber-700: #bb4d00;
+
+  --orange-500: #ff6900;
+  --orange-600: #f54900;
+
+  /* ---- Navy (primary navigation / brand chrome) ---- */
+  --navy-700: #24487a;
+  --navy-800: #1e3a5f;
+  --navy-900: #16294a;
+
+  /* ========================================================================
+     Semantic tokens (map to Figma names)
+     ===================================================================== */
+  --color-brand: var(--blue-700);            /* fg-brand #1447e6 */
+  --color-brand-hover: var(--blue-800);
+  --color-brand-strong: var(--blue-900);     /* fg-brand-strong */
+  --color-brand-soft: var(--blue-50);
+  --color-brand-softer: #eef6ff;             /* bg-brand-softer */
+  --color-brand-subtle-border: var(--blue-200); /* border-brand-subtle */
+
+  --color-navy: var(--navy-800);
+  --color-navy-hover: var(--navy-700);
+
+  --color-success: var(--green-600);
+  --color-success-soft: var(--green-50);
+  --color-danger: var(--red-600);
+  --color-danger-soft: var(--red-50);
+  --color-warning: var(--amber-500);
+  --color-warning-soft: var(--amber-50);
+  --color-pending: var(--amber-500);
+
+  --color-secondary: var(--gray-500);
+
+  /* Text */
+  --text-heading: var(--gray-900);           /* #101828 */
+  --text-body: var(--gray-600);              /* #4a5565 */
+  /* muted darkened from gray-500 (#6a7282 ≈ 4.4:1) to hit WCAG AA 4.5:1
+     on white while staying visibly lighter than body text */
+  --text-muted: #586274;                     /* ≈ 5.1:1 on white */
+  --nav-muted: #aebfd8;                       /* ≥4.5:1 on navy chrome */
+  --text-on-brand: #ffffff;
+  --text-fg-brand: var(--blue-700);
+  --text-fg-brand-strong: var(--blue-900);
+
+  /* Surfaces */
+  --bg-page: var(--gray-50);
+  --bg-surface: #ffffff;                     /* bg-primary-soft */
+  --bg-surface-hover: var(--gray-50);
+  --bg-subtle: var(--gray-100);
+
+  /* Borders */
+  --border-base: var(--gray-200);            /* #e5e7eb */
+  --border-strong: var(--gray-300);
+  --border-width: 1px;
+
+  /* ---- Typography scale (px from Figma) ---- */
+  --text-xs: 0.75rem;    /* 12 */
+  --text-sm: 0.875rem;   /* 14 */
+  --text-base: 1rem;     /* 16 */
+  --text-lg: 1.125rem;   /* 18 */
+  --text-xl: 1.25rem;    /* 20 */
+  --text-2xl: 1.5rem;    /* 24 */
+  --text-3xl: 1.875rem;  /* 30 */
+  --text-4xl: 2.25rem;   /* 36 */
+
+  --leading-4: 1rem;     /* 16 */
+  --leading-5: 1.25rem;  /* 20 */
+  --leading-6: 1.5rem;   /* 24 */
+  --leading-7: 1.75rem;  /* 28 */
+
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* ---- Spacing (Figma spacing/* = px, 4px base) ---- */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4 */
+  --space-1-5: 0.375rem;/* 6 */
+  --space-2: 0.5rem;    /* 8 */
+  --space-2-5: 0.625rem;/* 10 = Tailwind py-2.5 — Flowbite's exact button pad, on-scale */
+  --space-3: 0.75rem;   /* 12 */
+  --space-4: 1rem;      /* 16 */
+  --space-5: 1.25rem;   /* 20 */
+  --space-6: 1.5rem;    /* 24 */
+  --space-8: 2rem;      /* 32 */
+  --space-10: 2.5rem;   /* 40 */
+  --space-12: 3rem;     /* 48 */
+  --space-16: 4rem;     /* 64 */
+
+  /* ---- Border radius — Tailwind/Flowbite scale (Figma exposes sm=6 & 12) ----
+     Controls use --radius-base (8 = Tailwind rounded-lg, Flowbite's button/input
+     radius); cards use --radius-lg (12 = Figma rounded-base). All on-scale. */
+  --radius-sm: 0.375rem;  /* 6  — rounded-md / Figma rounded-sm */
+  --radius-base: 0.5rem;  /* 8  — rounded-lg (buttons, inputs) */
+  --radius-lg: 0.75rem;   /* 12 — rounded-xl / Figma rounded-base (cards) */
+  --radius-xl: 1rem;      /* 16 — rounded-2xl */
+  --radius-full: 9999px;
+
+  /* ---- Shadows (Figma effects) ---- */
+  --shadow-sm: 0 1px 2px 0 #1d293d0d;
+  --shadow-base: 0 1px 3px 0 #1d293d1a, 0 1px 2px -1px #1d293d1a;
+  --shadow-lg: 0 4px 6px 0 #0000000d, 0 10px 15px 0 #0000001a;
+  --shadow-focus: 0 0 0 3px #bedbff;
+
+  /* ---- Motion (Emil Kowalski curves — stronger than built-in easings) ---- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);       /* entrances, feedback */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);   /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);    /* iOS-like drawer */
+  --dur-press: 140ms;
+  --dur-menu: 160ms;
+  --dur-modal: 200ms;
+  --dur-drawer: 260ms;
+
+  /* focus ring for non-input controls (buttons, nav, options) */
+  --focus-ring-color: var(--color-brand);
+  --focus-ring-offset: 2px;
+  /* button fills darkened to pass 4.5:1 with white text (was green-600/amber-500) */
+  --btn-success-bg: var(--green-700);        /* #008236 ≈ 4.9:1 */
+  --btn-success-bg-hover: var(--green-800);
+  --btn-warning-bg: var(--amber-400);        /* #ffb900 — paired with dark ink */
+  --btn-warning-bg-hover: #eaa700;
+  --btn-warning-text: var(--gray-900);       /* dark ink ≈ 9:1 on amber */
+
+  /* ---- Layout ---- */
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 60px;
+  --z-sidebar: 40;
+  --z-topbar: 30;
+  --z-dialog: 100;
+  --z-toast: 200;
+}
