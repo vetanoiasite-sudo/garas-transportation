@@ -1,0 +1,34 @@
+# Render Blueprint — provisions the NestJS API + a free PostgreSQL database.
+# Deploy: on render.com → New → Blueprint → connect this repo. Render reads this
+# file and creates everything (DB, web service, env vars) automatically.
+databases:
+  - name: transportation-garas-db
+    databaseName: garas
+    plan: free
+
+services:
+  - type: web
+    name: transportation-garas-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    # Build: generate the Postgres client, compile, sync the schema, seed roles/
+    # accounts + demo data (all idempotent, safe to re-run on every deploy).
+    buildCommand: >-
+      npm install &&
+      npx prisma generate --schema prisma/schema.postgres.prisma &&
+      npm run build &&
+      npx prisma db push --schema prisma/schema.postgres.prisma --skip-generate &&
+      npx ts-node prisma/seed.ts
+    startCommand: node dist/main.js
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: transportation-garas-db
+          property: connectionString
+      - key: TOKEN_SECRET
+        generateValue: true # Render generates a strong secret
+      - key: ALLOWED_COMPANIES
+        value: demo,garas,pharma
