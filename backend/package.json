@@ -13,6 +13,8 @@
     "prisma:push": "prisma db push",
     "seed": "ts-node prisma/seed.ts",
     "local:setup": "prisma generate --schema prisma/schema.sqlite.prisma && prisma db push --schema prisma/schema.sqlite.prisma && ts-node prisma/seed.ts",
+    "prod:setup": "prisma generate --schema prisma/schema.postgres.prisma",
+    "start:container": "prisma db push --schema prisma/schema.postgres.prisma --skip-generate && ts-node prisma/seed.ts && node dist/main.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
