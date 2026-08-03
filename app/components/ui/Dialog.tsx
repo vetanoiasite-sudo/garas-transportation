@@ -34,19 +34,27 @@ export default function Dialog({
 }) {
   const { t } = useLocale();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Keep the latest onClose without re-running the mount effect. Callers pass an
+  // inline `() => setX(null)` that changes identity on every parent render; if the
+  // effect below depended on it, it would tear down and re-run on each keystroke,
+  // yanking focus out of the field being typed in.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     lockScroll();
 
-    // move focus into the dialog — first field, else the panel itself
+    // Move focus into the dialog — prefer the first form field (so typing starts
+    // there), then any focusable element, then the panel itself.
     const panel = panelRef.current;
-    const first = panel?.querySelector<HTMLElement>(FOCUSABLE);
+    const firstField = panel?.querySelector<HTMLElement>("input:not([disabled]), textarea:not([disabled]), select:not([disabled])");
+    const first = firstField ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
     (first ?? panel)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !panel) return;
@@ -76,7 +84,11 @@ export default function Dialog({
       unlockScroll();
       opener?.focus?.(); // restore focus to the trigger
     };
-  }, [onClose]);
+    // Mount-once: set up focus trap + scroll lock when the dialog opens and tear
+    // them down when it closes. onClose is read via onCloseRef (see above), so it
+    // must NOT be a dependency — otherwise the effect re-runs on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div

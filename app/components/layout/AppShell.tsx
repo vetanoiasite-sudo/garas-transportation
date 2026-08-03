@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell() {
   const { user, ready } = useAuth();
   const { locale } = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
-    if (ready && !user) router.replace(`/${locale}/login`);
-  }, [ready, user, router, locale]);
+    if (ready && !user) navigate(`/${locale}/login`, { replace: true });
+  }, [ready, user, navigate, locale]);
 
   // close the mobile drawer whenever the route changes
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} aria-hidden />}
       <div className="main">
         <Topbar onMenu={() => setNavOpen(true)} />
-        <div className="content">{children}</div>
+        <div className="content"><Outlet /></div>
       </div>
     </div>
   );

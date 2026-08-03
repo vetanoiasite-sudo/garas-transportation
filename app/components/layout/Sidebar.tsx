@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { canAdd } from "@/lib/types";
+import { canAdd, can, type Permission } from "@/lib/types";
 import {
-  IconDashboard, IconBus, IconTruck, IconUsers, IconBuilding, IconReceipt,
-  IconMoney, IconTag, IconSwap, IconSettings, IconClock, IconTrend, IconChevronDown, IconX,
+  IconDashboard, IconBus, IconRoute, IconTruck, IconUsers, IconUser, IconBuilding, IconReceipt,
+  IconMoney, IconTag, IconSwap, IconSettings, IconTrend, IconChevronDown, IconX, IconBell,
 } from "@/components/ui/Icons";
 
 interface NavLink {
@@ -16,14 +16,16 @@ interface NavLink {
   labelKey: string;
   icon: React.ComponentType<{ style?: React.CSSProperties }>;
   adminOnly?: boolean;
+  perm?: Permission; // when set, the item shows only if the role has this permission
 }
 
 export default function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
   const { t, locale } = useLocale();
   const { user } = useAuth();
-  const pathname = usePathname();
+  const pathname = useLocation().pathname;
   const [openGroup, setOpenGroup] = useState(true);
   const admin = canAdd(user?.role);
+  const canUsers = can(user?.role, "manage.users");
 
   const p = (path: string) => `/${locale}${path}`;
   const isActive = (path: string) => pathname === p(path) || pathname.startsWith(p(path) + "/");
@@ -32,13 +34,15 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
     { href: "/dashboard", labelKey: "nav.dashboard", icon: IconDashboard },
     { href: "/attendance", labelKey: "nav.attendance", icon: IconTrend },
     { href: "/lines", labelKey: "nav.lines", icon: IconBus },
+    { href: "/routes", labelKey: "nav.routes", icon: IconRoute },
     { href: "/vehicles", labelKey: "nav.vehicles", icon: IconTruck },
-    { href: "/passengers", labelKey: "nav.employees", icon: IconUsers, adminOnly: true },
+    { href: "/passengers", labelKey: "nav.employees", icon: IconUsers, perm: "manage.passengers" },
     { href: "/suppliers", labelKey: "nav.suppliers", icon: IconBuilding },
     { href: "/account-statement", labelKey: "nav.statement", icon: IconReceipt },
     { href: "/deductions", labelKey: "nav.deductions", icon: IconMoney },
     { href: "/repricing", labelKey: "nav.repricing", icon: IconTag },
     { href: "/exceptions", labelKey: "nav.exceptions", icon: IconSwap },
+    { href: "/notifications", labelKey: "nav.notifications", icon: IconBell, perm: "manage.users" },
   ];
 
   return (
@@ -58,18 +62,25 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
 
       <nav className="sidebar-nav">
         {main
-          .filter((l) => !l.adminOnly || admin)
+          .filter((l) => (l.perm ? can(user?.role, l.perm) : !l.adminOnly || admin))
           .map((l) => {
             const Icon = l.icon;
             return (
-              <Link key={l.href} href={p(l.href)} className={`nav-item${isActive(l.href) ? " active" : ""}`} aria-current={isActive(l.href) ? "page" : undefined} onClick={onClose}>
+              <Link key={l.href} to={p(l.href)} className={`nav-item${isActive(l.href) ? " active" : ""}`} aria-current={isActive(l.href) ? "page" : undefined} onClick={onClose}>
                 <Icon />
                 <span>{t(l.labelKey)}</span>
               </Link>
             );
           })}
 
-        {admin && (
+        {canUsers && (
+          <Link to={p("/users")} className={`nav-item${isActive("/users") ? " active" : ""}`} aria-current={isActive("/users") ? "page" : undefined} onClick={onClose}>
+            <IconUser />
+            <span>{t("nav.users")}</span>
+          </Link>
+        )}
+
+        {admin && canUsers && (
           <>
             <button
               className="nav-item"
@@ -85,9 +96,9 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
             </button>
             {openGroup && (
               <div className="nav-sub">
-                <Link href={p("/shifts")} className={`nav-item${isActive("/shifts") ? " active" : ""}`} aria-current={isActive("/shifts") ? "page" : undefined} onClick={onClose}>
-                  <IconClock />
-                  <span>{t("nav.shifts")}</span>
+                <Link to={p("/users")} className={`nav-item${isActive("/users") ? " active" : ""}`} aria-current={isActive("/users") ? "page" : undefined} onClick={onClose}>
+                  <IconUsers />
+                  <span>{t("nav.supervisorAdmin")}</span>
                 </Link>
               </div>
             )}

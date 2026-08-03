@@ -71,7 +71,7 @@ export default function DataTable<T extends { id: string }>({
               <tr>
                 {columns.map((c) => (
                   <th key={c.key} scope="col" style={{ width: c.width, textAlign: c.align ?? "start" }}>
-                    {c.header || <span className="sr-only">إجراءات</span>}
+                    {c.header || <span className="sr-only">{t("common.actions")}</span>}
                   </th>
                 ))}
               </tr>
@@ -93,10 +93,10 @@ export default function DataTable<T extends { id: string }>({
             <table className="data">
               <thead>
                 <tr>
-                  {collapsing && <th scope="col" style={{ width: 40 }}><span className="sr-only">تفاصيل</span></th>}
+                  {collapsing && <th scope="col" style={{ width: 40 }}><span className="sr-only">{t("action.details")}</span></th>}
                   {visibleCols.map((c) => (
                     <th key={c.key} scope="col" style={{ width: c.width, textAlign: c.align ?? "start" }}>
-                      {c.header || <span className="sr-only">إجراءات</span>}
+                      {c.header || <span className="sr-only">{t("common.actions")}</span>}
                     </th>
                   ))}
                 </tr>
@@ -166,7 +166,7 @@ export default function DataTable<T extends { id: string }>({
                 </span>
               </div>
               <div className="pager">
-                <button disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label="السابق">‹</button>
+                <button disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label={t("common.prev")}>‹</button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter((p) => Math.abs(p - current) <= 2 || p === 1 || p === totalPages)
                   .map((p, idx, arr) => (
@@ -175,7 +175,7 @@ export default function DataTable<T extends { id: string }>({
                       <button className={p === current ? "active" : ""} aria-current={p === current ? "page" : undefined} onClick={() => setPage(p)}>{p}</button>
                     </span>
                   ))}
-                <button disabled={current >= totalPages} onClick={() => setPage(current + 1)} aria-label="التالي">›</button>
+                <button disabled={current >= totalPages} onClick={() => setPage(current + 1)} aria-label={t("common.next")}>›</button>
               </div>
             </div>
           </>

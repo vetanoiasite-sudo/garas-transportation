@@ -1,56 +1,62 @@
 /* Domain types + role/permission model (from the business documentation §2). */
 
+/* Four panel roles + two mobile-only roles (supervisor & passenger) that never
+ * appear in the admin panel but still exist as login accounts for the app.  */
 export type Role =
-  | "system_admin"
-  | "super_admin"
-  | "line_admin"
-  | "trans_admin"
-  | "supervisor"
-  | "reader";
+  | "super_admin" // مسؤول عام — everything, incl. approvals & user management
+  | "transportation_admin" // مسئول مواصلات — transportation + money
+  | "hr_admin" // مسئول الموظفين — passengers + attendance + exceptions
+  | "reader" // مشاهد — read-only
+  | "supervisor" // mobile only (route supervisor / mobile attendance)
+  | "passenger"; // mobile only
+
+/** The four roles the admin panel exposes (create-user dropdown, etc.). */
+export const PANEL_ROLES: Role[] = ["super_admin", "transportation_admin", "hr_admin", "reader"];
 
 export const roleLabelKey: Record<Role, string> = {
-  system_admin: "role.systemAdmin",
   super_admin: "role.superAdmin",
-  line_admin: "role.lineAdmin",
-  trans_admin: "role.transAdmin",
-  supervisor: "role.supervisor",
+  transportation_admin: "role.transportationAdmin",
+  hr_admin: "role.hrAdmin",
   reader: "role.reader",
+  supervisor: "role.supervisor",
+  passenger: "role.passenger",
 };
 
 export type Permission =
-  | "crud.entities" // add/edit/delete line, route, station, passenger assignment
-  | "add.entities" // add only (trans admin)
+  | "crud.entities" // add/edit/delete line, route, station (transportation)
   | "approve.line"
   | "manage.vehicles"
   | "approve.vehicle"
-  | "manage.shifts"
   | "add.payment"
   | "create.repricing"
   | "approve.repricing"
   | "reject.repricing"
   | "create.supplier"
   | "print.invoice"
+  | "manage.passengers" // employees/passengers + their route assignments
   | "touch.attendance"
-  | "mobile.attendance";
+  | "manage.exceptions"
+  | "mobile.attendance"
+  | "manage.users"; // create/edit login users & assign their transportation role
 
 const matrix: Record<Role, Permission[]> = {
-  system_admin: [
-    "crud.entities", "approve.line", "manage.vehicles", "approve.vehicle",
-    "manage.shifts", "add.payment", "create.repricing", "approve.repricing",
-    "create.supplier", "print.invoice", "touch.attendance",
-  ],
   super_admin: [
     "crud.entities", "approve.line", "manage.vehicles", "approve.vehicle",
-    "manage.shifts", "add.payment", "create.repricing", "approve.repricing",
-    "reject.repricing", "create.supplier", "print.invoice", "touch.attendance",
+    "add.payment", "create.repricing", "approve.repricing", "reject.repricing",
+    "create.supplier", "print.invoice", "manage.passengers", "touch.attendance",
+    "manage.exceptions", "manage.users",
   ],
-  line_admin: [
-    "crud.entities", "manage.vehicles", "manage.shifts", "add.payment",
-    "create.repricing", "print.invoice",
+  // Transportation operations + the money side (statements/deductions/repricing/
+  // payments), but no approvals, no user management, no passengers/attendance.
+  transportation_admin: [
+    "crud.entities", "manage.vehicles", "add.payment", "create.repricing",
+    "create.supplier", "print.invoice",
   ],
-  trans_admin: ["add.entities", "create.supplier", "touch.attendance"],
-  supervisor: ["mobile.attendance"],
+  // Employees + their route assignment + attendance + exceptions.
+  hr_admin: ["manage.passengers", "touch.attendance", "manage.exceptions"],
   reader: [],
+  supervisor: ["mobile.attendance"],
+  passenger: [],
 };
 
 export function can(role: Role | undefined, perm: Permission): boolean {
@@ -58,9 +64,9 @@ export function can(role: Role | undefined, perm: Permission): boolean {
   return matrix[role]?.includes(perm) ?? false;
 }
 
-/** True if the role may add entities (either full CRUD or add-only). */
+/** True if the role may add/edit transportation entities (lines/routes/stations). */
 export function canAdd(role: Role | undefined): boolean {
-  return can(role, "crud.entities") || can(role, "add.entities");
+  return can(role, "crud.entities");
 }
 
 export type Period = "go" | "return" | "both";
@@ -93,6 +99,12 @@ export interface RouteItem {
   cost: number;
   religionM: number;
   religionC: number;
+  // Ids for the edit form (populated by the single-route detail endpoint).
+  supplierId?: string;
+  contactPersonId?: string;
+  branchScheduleId?: string;
+  supervisorId?: string;
+  vehicleId?: string;
 }
 
 export interface Station {
@@ -119,11 +131,23 @@ export interface Passenger {
   identityNumber: string;
   mobile: string;
   identifier: string;
+  maritalStatusId?: string;
   active: boolean;
   photo?: string;
   homeLat?: number;
   homeLng?: number;
   routesCount: number;
+}
+
+/** A login user (the `User` table — admins & supervisors), distinct from a
+ *  Passenger (HrUser employee). Its `role` drives the app's permission gating. */
+export interface SystemUser {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: Role;
+  active: boolean;
 }
 
 export interface Vehicle {
@@ -132,18 +156,6 @@ export interface Vehicle {
   capacity: number;
   approved: boolean;
   active: boolean;
-}
-
-export interface ShiftDay {
-  day: number; // 1=Sun .. 7=Sat
-  active: boolean;
-  from: string;
-  to: string;
-}
-export interface ShiftGroup {
-  id: string;
-  number: number;
-  days: ShiftDay[];
 }
 
 export interface ContactPerson {
@@ -157,6 +169,9 @@ export interface Supplier {
   createdAt: string;
   phone?: string;
   mobile?: string;
+  email?: string;
+  fax?: string;
+  address?: string;
   logo?: string;
   activeRoutes: number;
   contacts: ContactPerson[];
@@ -176,6 +191,39 @@ export interface StatementRow {
   totalDeductions: number;
   normalPayments: number;
   advancePayments: number;
+}
+
+export interface SupplierPaymentDistribution {
+  month: number;
+  year: number;
+  amount: number;
+}
+export interface SupplierPayment {
+  id: string;
+  supplierId: string;
+  supplier: string;
+  amount: number;
+  paymentDate: string;
+  startDate?: string;
+  months?: number;
+  type: "advance" | "normal";
+  distribution?: SupplierPaymentDistribution[];
+}
+
+/** A row of the Line Cost Report (transportationCosts / TransportationReportCostData). */
+export interface CostReportRow {
+  id: string;
+  lineName: string;   // محطة التجمع
+  routeName: string;  // الخط
+  serial: string;
+  supplier: string;
+  driver: string;
+  cost: number;
+  oneWay: boolean;
+  rounds: number;
+  deductionRounds: number;
+  deductionCost: number;
+  netCost: number;
 }
 
 export interface Deduction {
@@ -223,10 +271,11 @@ export interface Exception {
 export interface AttendanceRecord {
   id: string;
   name: string;
-  idCode: string;
-  otherId: string;
+  idCode: string; // passenger identity number (الرقم القومي)
+  otherId: string; // passenger "another identifier"
   line: string;
   route: string;
+  serial: string; // the route's serial (used by the serial filter)
   supervisor: string;
   supplier: string;
   driver: string;

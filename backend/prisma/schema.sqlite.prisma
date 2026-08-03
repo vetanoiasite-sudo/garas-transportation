@@ -1,0 +1,471 @@
+// LOCAL DEV ONLY (no SQL Server needed). Mirror of schema.prisma with a
+// SQLite datasource. Keep models in sync with schema.prisma (the prod schema).
+// Field names are clean; the documented (frozen) JSON keys are applied at the
+// API/DTO layer, so the DB stays tidy while the HTTP contract stays faithful.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ---------------------------------------------------------------------------
+// Identity, sessions & roles (§5.5)
+// ---------------------------------------------------------------------------
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  password     String
+  firstName    String?
+  middleName   String?
+  lastName     String?
+  mobile       String?
+  active       Boolean  @default(true)
+  branchId     Int?
+  photoUrl     String?
+  creationDate DateTime @default(now())
+  modified     DateTime @updatedAt
+
+  sessions  UserSession[]
+  userRoles UserRole[]
+  hrUser    HrUser?
+  supervisedRoutes TransportationVehicleRoute[] @relation("RouteSupervisor")
+}
+
+model UserSession {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  active    Boolean  @default(true)
+  startDate DateTime @default(now())
+  endDate   DateTime
+
+  user User @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([userId])
+}
+
+model Role {
+  id        Int        @id
+  name      String
+  userRoles UserRole[]
+}
+
+model UserRole {
+  id     Int     @id @default(autoincrement())
+  userId Int
+  roleId Int
+  active Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  role Role @relation(fields: [roleId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([userId])
+  @@index([roleId])
+}
+
+model MaritalStatus {
+  id      Int      @id @default(autoincrement())
+  name    String
+  hrUsers HrUser[]
+}
+
+model HrUser {
+  id              Int      @id @default(autoincrement())
+  userId          Int?     @unique
+  email           String?
+  firstName       String?
+  middleName      String?
+  lastName        String?
+  mobile          String?
+  identityNumber  String?
+  maritalStatusId Int?
+  imgPath         String?
+  latitude        Float?
+  longitude       Float?
+  active          Boolean  @default(true)
+  creationDate    DateTime @default(now())
+
+  user            User?                              @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  maritalStatus   MaritalStatus?                     @relation(fields: [maritalStatusId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  memberships     TransportationVehicleRouteEmployee[]
+  exceptions      TransportationVehicleRouteEmployeeException[]
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String?
+  phone        String?
+  mobile       String?
+  fax          String?
+  address      String?
+  active       Boolean  @default(true)
+  creationDate DateTime @default(now())
+
+  contacts   SupplierContactPerson[]
+  routes     TransportationVehicleRoute[]
+  deductions TransportationVehicleRouteDeduction[]
+  payments   SupplierPayment[]
+  accounts   TransportationVehicleRouteAccount[]
+  rounds     TransportationRoundForRoute[]
+}
+
+model SupplierContactPerson {
+  id         Int    @id @default(autoincrement())
+  supplierId Int
+  name       String
+  mobile     String?
+
+  supplier Supplier                     @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  routes   TransportationVehicleRoute[]
+
+  @@index([supplierId])
+}
+
+// ---------------------------------------------------------------------------
+// Shifts (BranchSchedule)
+// ---------------------------------------------------------------------------
+
+model BranchSchedule {
+  id           Int      @id @default(autoincrement())
+  shiftNumber  Int
+  weekDayId    Int // 1=Sunday … 7=Saturday
+  from         String // HH:mm
+  to           String
+  active       Boolean  @default(true)
+  branchId     Int?
+  creationDate DateTime @default(now())
+  createdBy    Int?
+  modifiedDate DateTime @updatedAt
+  modifiedBy   Int?
+
+  routes TransportationVehicleRoute[]
+
+  @@index([branchId])
+}
+
+// ---------------------------------------------------------------------------
+// Lines & vehicles
+// ---------------------------------------------------------------------------
+
+model TransportationLine {
+  id           Int      @id @default(autoincrement())
+  lineName     String
+  isApproved   Boolean? @default(false)
+  approvedBy   Int?
+  active       Boolean  @default(true)
+  creationDate DateTime @default(now())
+  creationBy   Int?
+  modifiedDate DateTime @updatedAt
+  modifiedBy   Int?
+
+  routes TransportationVehicleRoute[]
+}
+
+model VehicleType {
+  id       Int                     @id @default(autoincrement())
+  type     String
+  active   Boolean                 @default(true)
+  vehicles TransportationVehicle[]
+}
+
+model TransportationVehicle {
+  id            Int      @id @default(autoincrement())
+  vehicleTypeId Int
+  capacity      Int
+  isApproved    Boolean  @default(false)
+  approvedBy    String?
+  active        Boolean  @default(true)
+  creationDate  DateTime @default(now())
+  creationBy    Int?
+  modifiedDate  DateTime @updatedAt
+  modifiedBy    Int?
+
+  vehicleType VehicleType                  @relation(fields: [vehicleTypeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  routes      TransportationVehicleRoute[]
+
+  @@index([vehicleTypeId])
+}
+
+// ---------------------------------------------------------------------------
+// Routes, stations, memberships
+// ---------------------------------------------------------------------------
+
+model TransportationVehicleRoute {
+  id                      Int       @id @default(autoincrement())
+  transportationLineId    Int
+  transportationVehicleId Int
+  supplierId              Int?
+  supplierContactPersonId Int?
+  branchScheduleId        Int?
+  supervisorId            Int? // User id (a login user with roles — NOT an HrUser/passenger)
+  serial                  String
+  periodFrom              DateTime?
+  periodTo                DateTime?
+  fromTime                String? // go time of day (docs: FromoDate)
+  toTime                  String? // return time of day
+  nameOfRoute             String
+  lineCost                Float     @default(0)
+  oneWay                  Boolean?  @default(false)
+  active                  Boolean   @default(true)
+  isApproved              Boolean?  @default(false)
+  creationDate            DateTime  @default(now())
+  creationBy              Int?
+  modifiedDate            DateTime  @updatedAt
+  modifiedBy              Int?
+
+  line          TransportationLine          @relation(fields: [transportationLineId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  vehicle       TransportationVehicle       @relation(fields: [transportationVehicleId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  supplier      Supplier?                   @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  contactPerson SupplierContactPerson?      @relation(fields: [supplierContactPersonId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  branchSchedule BranchSchedule?            @relation(fields: [branchScheduleId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  supervisor    User?                       @relation("RouteSupervisor", fields: [supervisorId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  directions    TransportationVehicleRouteDirection[]
+  employees     TransportationVehicleRouteEmployee[]
+  exceptions    TransportationVehicleRouteEmployeeException[]
+  deductions    TransportationVehicleRouteDeduction[]
+  accounts      TransportationVehicleRouteAccount[]
+  rounds        TransportationRoundForRoute[]
+  exceptionPrices TransportionLineExceptionPrice[]
+  increaseLines TransportationLineIncreaseRequestLine[]
+
+  @@index([transportationLineId])
+  @@index([supplierId])
+  @@index([serial])
+}
+
+model TransportationVehicleRouteDirection {
+  id             Int      @id @default(autoincrement())
+  routeId        Int
+  routeDirection String
+  description    String?
+  active         Boolean  @default(true)
+  latitude       Float?
+  longitude      Float?
+  creationDate   DateTime @default(now())
+
+  route     TransportationVehicleRoute          @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  employees TransportationVehicleRouteEmployee[]
+
+  @@index([routeId])
+}
+
+model TransportationVehicleRouteEmployee {
+  id                Int       @id @default(autoincrement())
+  routeId           Int
+  hrUserId          Int
+  directionId       Int?
+  period            String // Go | Return | Both
+  fromDate          DateTime?
+  toDate            DateTime?
+  durationLatitude  Float?
+  durationLongitude Float?
+  active            Boolean   @default(true)
+  creationDate      DateTime  @default(now())
+
+  route     TransportationVehicleRoute           @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  hrUser    HrUser                               @relation(fields: [hrUserId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  direction TransportationVehicleRouteDirection? @relation(fields: [directionId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([routeId])
+  @@index([hrUserId])
+}
+
+model TransportationVehicleRouteEmployeeException {
+  id              Int       @id @default(autoincrement())
+  hrUserId        Int
+  routeId         Int
+  directionId     Int?
+  period          String
+  fromDate        DateTime?
+  toDate          DateTime?
+  dayName         String?
+  exceptionDate   DateTime?
+  latitude        Float?
+  longitude       Float?
+  reasonException String?
+  contactNumber   String?
+  active          Boolean   @default(true)
+  creationDate    DateTime  @default(now())
+  creationBy      Int?
+
+  hrUser HrUser                     @relation(fields: [hrUserId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  route  TransportationVehicleRoute @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([hrUserId])
+  @@index([routeId])
+}
+
+// ---------------------------------------------------------------------------
+// Financials — deductions, repricing, payments, accounts, rounds, prices
+// ---------------------------------------------------------------------------
+
+model TransportationVehicleRouteDeduction {
+  id              Int       @id @default(autoincrement())
+  supplierId      Int?
+  routeId         Int
+  serial          String
+  dateOfDeduction DateTime
+  deductPerRound  Float
+  cause           String?
+  typeOfDedct     String // Normal | Taxes
+  routePrice      Float?
+  fromDate        DateTime?
+  toDate          DateTime?
+  creationDate    DateTime  @default(now())
+  creationBy      Int?
+
+  supplier Supplier?                  @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  route    TransportationVehicleRoute @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([routeId])
+  @@index([supplierId])
+}
+
+model TransportationLineIncreaseRequest {
+  id                    Int       @id @default(autoincrement())
+  isPercent             Boolean
+  increaseCost          Float
+  forAllLines           Boolean
+  approximateToFiveFlag Boolean   @default(false)
+  startDate             DateTime
+  approve               Boolean?
+  approvedBy            Int?
+  approvedDate          DateTime?
+  creationDate          DateTime  @default(now())
+  creationBy            Int?
+
+  lines TransportationLineIncreaseRequestLine[]
+}
+
+model TransportationLineIncreaseRequestLine {
+  id          Int   @id @default(autoincrement())
+  requestId   Int
+  routeId     Int
+  priceBefore Float @default(0)
+  priceAfter  Float @default(0)
+
+  request TransportationLineIncreaseRequest @relation(fields: [requestId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  route   TransportationVehicleRoute        @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([requestId])
+}
+
+model TransportionLineExceptionPrice {
+  id       Int      @id @default(autoincrement())
+  routeId  Int
+  price    Float
+  fromDate DateTime
+
+  route TransportationVehicleRoute @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([routeId])
+}
+
+model SupplierPayment {
+  id             Int       @id @default(autoincrement())
+  supplierId     Int
+  payment        Float
+  datePayment    DateTime
+  startDate      DateTime?
+  numberOfMonths Int?
+  typeOfDebt     String // Normal | Advance
+  creationDate   DateTime  @default(now())
+
+  supplier     Supplier                     @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  distribution DistributionSupplierPayment[]
+
+  @@index([supplierId])
+}
+
+model DistributionSupplierPayment {
+  id        Int   @id @default(autoincrement())
+  paymentId Int
+  payment   Float
+  monthNum  Int
+  yearNum   Int
+
+  supplierPayment SupplierPayment @relation(fields: [paymentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([paymentId])
+}
+
+model TransportationVehicleRouteAccount {
+  id             Int      @id @default(autoincrement())
+  routeId        Int
+  supplierId     Int?
+  serial         String
+  dateOfMonth    DateTime
+  countOfRounds  Float    @default(0)
+  priceOfRounds  Float?
+  deductPerRounds Float   @default(0)
+
+  route    TransportationVehicleRoute @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  supplier Supplier?                  @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([routeId])
+  @@index([supplierId])
+}
+
+model TransportationRoundForRoute {
+  id           Int       @id @default(autoincrement())
+  routeId      Int
+  supplierId   Int?
+  serial       String
+  checkInDate  DateTime?
+  checkOutDate DateTime?
+  oneWayDate   DateTime?
+  priceRound   Float?
+  creationDate DateTime  @default(now())
+
+  route    TransportationVehicleRoute @relation(fields: [routeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  supplier Supplier?                  @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([routeId])
+  @@index([serial])
+}
+
+// ---------------------------------------------------------------------------
+// Attendance (linked by serial strings — no FK, as in the old system)
+// ---------------------------------------------------------------------------
+
+model UserAttendance {
+  id                Int       @id @default(autoincrement())
+  type              String // Person | Bus
+  serial            String // Person → HrUser.email (fingerprint no.); Bus → route serial
+  checkIn           DateTime?
+  checkOut          DateTime?
+  oneWayDate        DateTime?
+  checkInRouteId    Int?
+  checkOutRouteId   Int?
+  checkInLatitude   Float?
+  checkInLongitude  Float?
+  checkOutLatitude  Float?
+  checkOutLongitude Float?
+  creationDate      DateTime  @default(now())
+  creationBy        Int?
+
+  @@index([serial])
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  userId      Int      // recipient (a super admin)
+  title       String
+  description String?
+  entityType  String? // route | line | vehicle | repricing
+  entityId    Int?
+  fromUserId  Int? // the admin who triggered it
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}

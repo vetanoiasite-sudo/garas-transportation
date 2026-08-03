@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useCallback } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useLocation, useNavigate } from "react-router-dom";
 import { type Locale, dir as dirOf, translate, locales } from "@/lib/i18n";
 
 interface LocaleCtx {
@@ -20,8 +20,8 @@ export function LocaleProvider({
   locale: Locale;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
 
   const t = useCallback((key: string) => translate(locale, key), [locale]);
 
@@ -35,9 +35,9 @@ export function LocaleProvider({
       } else {
         parts.splice(1, 0, next);
       }
-      router.push(parts.join("/") || `/${next}`);
+      navigate(parts.join("/") || `/${next}`);
     },
-    [locale, pathname, router]
+    [locale, pathname, navigate]
   );
 
   return (

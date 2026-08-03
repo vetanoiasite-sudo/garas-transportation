@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { IconChevronEnd } from "@/components/ui/Icons";
 
 export default function KPICard({
@@ -36,6 +36,6 @@ export default function KPICard({
     </>
   );
 
-  if (href) return <Link href={href} className="kpi">{inner}</Link>;
+  if (href) return <Link to={href} className="kpi">{inner}</Link>;
   return <div className="kpi">{inner}</div>;
 }

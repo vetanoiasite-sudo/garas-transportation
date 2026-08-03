@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { Role } from "@/lib/types";
 import { AUTH_COOKIE } from "@/lib/auth";
+import { apiRaw } from "@/lib/api/client";
 
 export interface User {
   name: string;
@@ -10,14 +11,40 @@ export interface User {
   role: Role;
   branch: string;
   token: string;
+  companyName: string;
 }
 
 interface AuthCtx {
   user: User | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string, companyName?: string) => Promise<User>;
   logout: () => void;
-  setRole: (role: Role) => void; // dev role switcher
+}
+
+const DEFAULT_COMPANY = import.meta.env.VITE_COMPANY ?? "demo";
+
+// Backend transportation role ids → the app's Role (highest privilege wins).
+const ROLE_BY_ID: Record<number, Role> = {
+  216: "super_admin",
+  213: "transportation_admin",
+  220: "hr_admin",
+  214: "supervisor",
+  215: "passenger",
+  221: "reader",
+};
+const ROLE_RANK: Role[] = ["super_admin", "transportation_admin", "hr_admin", "supervisor", "reader", "passenger"];
+
+interface LoginResponse {
+  Data: string; // UserToken
+  Name?: string;
+  BranchId?: number | null;
+  RoleList?: { RoleID: number; RoleName: string }[];
+}
+
+function roleFromList(list: { RoleID: number }[]): Role | null {
+  const roles = list.map((r) => ROLE_BY_ID[r.RoleID]).filter(Boolean) as Role[];
+  if (roles.length === 0) return null;
+  return ROLE_RANK.find((r) => roles.includes(r)) ?? roles[0];
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -27,6 +54,18 @@ const Ctx = createContext<AuthCtx | null>(null);
  *  spinner and no client-side redirect flash on first paint.
  *  The cookie name lives in "@/lib/auth" so Server Components can import it. */
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+
+/** Read the session straight from the cookie (SPA: no server-seeded initialUser). */
+function readUserCookie(): User | null {
+  if (typeof document === "undefined") return null;
+  const raw = document.cookie.split("; ").find((c) => c.startsWith(`${AUTH_COOKIE}=`));
+  if (!raw) return null;
+  try {
+    return JSON.parse(decodeURIComponent(raw.slice(AUTH_COOKIE.length + 1))) as User;
+  } catch {
+    return null;
+  }
+}
 
 function writeCookie(user: User | null) {
   if (typeof document === "undefined") return;
@@ -38,15 +77,6 @@ function writeCookie(user: User | null) {
   }
 }
 
-const nameByRole: Record<Role, string> = {
-  system_admin: "أحمد النظام",
-  super_admin: "سارة المشرفة",
-  line_admin: "محمد الخطوط",
-  trans_admin: "خالد النقل",
-  supervisor: "علي المشرف",
-  reader: "قارئ",
-};
-
 export function AuthProvider({
   initialUser = null,
   children,
@@ -56,7 +86,7 @@ export function AuthProvider({
 }) {
   // Seeded from the cookie by the server, so the first render already knows
   // the auth state — hence `ready` is true immediately (no spinner flash).
-  const [user, setUser] = useState<User | null>(initialUser);
+  const [user, setUser] = useState<User | null>(() => initialUser ?? readUserCookie());
 
   const persist = useCallback((u: User | null) => {
     setUser(u);
@@ -64,16 +94,23 @@ export function AuthProvider({
   }, []);
 
   const login = useCallback(
-    async (email: string, _password: string) => {
-      // TODO: replace with real API call (POST /auth/login) → { token, roles, branch }
-      await new Promise((r) => setTimeout(r, 700));
-      const role: Role = "super_admin";
+    async (email: string, password: string, companyName: string = DEFAULT_COMPANY) => {
+      // The auth cookie must carry companyName+token BEFORE the call so the
+      // client can send them — but login itself is unauthenticated (auth:false).
+      const resp = await apiRaw<string>("POST", "/User/Login", {
+        auth: false,
+        body: { Email: email, Password: password, CompanyName: companyName },
+      });
+      const lr = resp as unknown as LoginResponse;
+      const role = roleFromList(lr.RoleList ?? []);
+      if (!role) throw new Error("noPerms"); // account has no transportation roles
       const u: User = {
-        name: nameByRole[role],
+        name: lr.Name?.trim() || email,
         email,
         role,
-        branch: "الفرع الرئيسي",
-        token: "mock-token",
+        branch: lr.BranchId != null ? String(lr.BranchId) : "",
+        token: lr.Data,
+        companyName,
       };
       persist(u);
       return u;
@@ -83,21 +120,8 @@ export function AuthProvider({
 
   const logout = useCallback(() => persist(null), [persist]);
 
-  const setRole = useCallback(
-    (role: Role) => {
-      setUser((prev) => {
-        const next: User = prev
-          ? { ...prev, role, name: nameByRole[role] }
-          : { name: nameByRole[role], email: "demo@garas.co", role, branch: "الفرع الرئيسي", token: "mock-token" };
-        writeCookie(next);
-        return next;
-      });
-    },
-    []
-  );
-
   return (
-    <Ctx.Provider value={{ user, ready: true, login, logout, setRole }}>
+    <Ctx.Provider value={{ user, ready: true, login, logout }}>
       {children}
     </Ctx.Provider>
   );

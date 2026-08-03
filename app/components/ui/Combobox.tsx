@@ -131,18 +131,28 @@ export default function Combobox({
         </span>
         <span className="row" style={{ gap: 4 }}>
           {selected && clearable && !disabled && (
-            <button
-              type="button"
+            // role="button" span (not a <button>) so it can live inside the
+            // trigger <button> without producing invalid nested-button markup.
+            <span
+              role="button"
+              tabIndex={-1}
               className="icon-btn"
               aria-label={t("action.close")}
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(undefined);
               }}
-              style={{ width: 22, height: 22 }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange(undefined);
+                }
+              }}
+              style={{ width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
             >
               <IconX style={{ width: 14, height: 14 }} />
-            </button>
+            </span>
           )}
           <IconChevronDown style={{ width: 16, height: 16 }} />
         </span>
