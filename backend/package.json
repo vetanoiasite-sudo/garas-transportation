@@ -15,6 +15,7 @@
     "local:setup": "prisma generate --schema prisma/schema.sqlite.prisma && prisma db push --schema prisma/schema.sqlite.prisma && ts-node prisma/seed.ts",
     "prod:setup": "prisma generate --schema prisma/schema.postgres.prisma",
     "start:container": "prisma db push --schema prisma/schema.postgres.prisma --skip-generate && ts-node prisma/seed.ts && node dist/main.js",
+    "vercel-build": "prisma generate --schema prisma/schema.postgres.prisma && nest build && prisma db push --schema prisma/schema.postgres.prisma --skip-generate && ts-node prisma/seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "exceljs": "^4.4.0",
+    "express": "^4.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },

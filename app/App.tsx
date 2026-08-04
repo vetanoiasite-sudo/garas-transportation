@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet, useParams } from "react-router-dom";
+import { createBrowserRouter, createHashRouter, Navigate, Outlet, useParams } from "react-router-dom";
 import { isLocale, defaultLocale } from "@/lib/i18n";
 import { LocaleProvider } from "@/contexts/LocaleContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -45,7 +45,11 @@ function LocaleLayout() {
   );
 }
 
-export const router = createBrowserRouter([
+// The offline/single-file demo uses hash routing so it works at any URL/base
+// (e.g. a published static page) with no server rewrites.
+const makeRouter = import.meta.env.VITE_DEMO === "true" ? createHashRouter : createBrowserRouter;
+
+export const router = makeRouter([
   { path: "/", element: <Navigate to={`/${defaultLocale}/dashboard`} replace /> },
   {
     path: "/:locale",

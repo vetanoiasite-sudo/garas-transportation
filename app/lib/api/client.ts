@@ -9,8 +9,11 @@
  * cookie via document.cookie. */
 
 import { AUTH_COOKIE } from "@/lib/auth";
+import { demoResponse } from "@/lib/api/demo";
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+// Offline demo build: serve canned data, never touch a backend.
+const DEMO = import.meta.env.VITE_DEMO === "true";
 
 export interface ErrorItem { ErrorCode: string; ErrorMSG: string }
 export interface PaginationHeader { CurrentPage: number; ItemsPerPage: number; TotalItems: number; TotalPages: number }
@@ -67,6 +70,16 @@ async function request<T>(
   path: string,
   opts: { headers?: HeaderMap; body?: unknown; auth?: boolean } = {},
 ): Promise<Envelope<T>> {
+  // Demo build: resolve from the captured dataset instead of the network.
+  if (DEMO) {
+    const json = demoResponse(method, path, opts.headers as Record<string, unknown>) as Envelope<T>;
+    if (!json.Result) {
+      const first = (json.Errors ?? [])[0];
+      throw new ApiError(first?.ErrorCode ?? "error", first?.ErrorMSG ?? "حدث خطأ");
+    }
+    return json;
+  }
+
   const { companyName, token } = readAuth();
   const headers: Record<string, string> = {
     Accept: "application/json",

@@ -4,7 +4,9 @@
 // API/DTO layer, so the DB stays tidy while the HTTP contract stays faithful.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" for local builds + the Vercel (AWS Lambda) runtime engine.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
