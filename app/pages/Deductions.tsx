@@ -7,6 +7,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { can } from "@/lib/types";
 import type { Deduction } from "@/lib/types";
 import { getDeductions, downloadDeductionsExcel, addDeduction, updateDeduction, type DeductionInput } from "@/lib/services/deductions";
+import { formatDate } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
@@ -100,7 +101,7 @@ export default function DeductionsPage() {
     { key: "routeName", header: t("filter.route") },
     { key: "supplier", header: t("filter.supplier") },
     { key: "driver", header: t("filter.driver") },
-    { key: "day", header: t("ded.day") },
+    { key: "day", header: t("ded.day"), render: (r) => formatDate(r.day) },
     { key: "amount", header: t("common.amount"), render: (r) => <b style={{ color: "var(--color-danger)" }}>{money(r.amount)}</b> },
     { key: "type", header: t("common.type"), render: (r) => (r.type === "tax" ? <span className="badge badge-amber">{t("ded.tax")}</span> : <span className="badge badge-gray">{t("ded.normal")}</span>) },
     { key: "reason", header: t("common.reason") },

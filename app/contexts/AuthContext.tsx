@@ -23,27 +23,36 @@ interface AuthCtx {
 
 const DEFAULT_COMPANY = import.meta.env.VITE_COMPANY ?? "demo";
 
-// Backend transportation role ids → the app's Role (highest privilege wins).
+// Garas transportation role ids → the app's Role (highest privilege wins).
+// Covers both the legacy CoreApi ids (137/210/30/…) and the consolidated ones.
 const ROLE_BY_ID: Record<number, Role> = {
-  216: "super_admin",
-  213: "transportation_admin",
-  220: "hr_admin",
+  137: "super_admin", // legacy System Admin
+  216: "super_admin", // Transportation Super Admin
+  213: "transportation_admin", // Transportation Admin
+  210: "transportation_admin", // legacy Line Admin
+  220: "hr_admin", // HR Admin
   214: "supervisor",
   215: "passenger",
   221: "reader",
+  30: "reader", // legacy "Add Supplier" helper role
 };
 const ROLE_RANK: Role[] = ["super_admin", "transportation_admin", "hr_admin", "supervisor", "reader", "passenger"];
 
 interface LoginResponse {
   Data: string; // UserToken
   Name?: string;
+  UserName?: string; // legacy CoreApi name field
   BranchId?: number | null;
+  BranchID?: number | null; // legacy CoreApi casing
   RoleList?: { RoleID: number; RoleName: string }[];
 }
 
+// Map the account's roles to one app Role. Any signed-in account with roles the
+// map doesn't know still gets in as a read-only viewer (never blocked).
 function roleFromList(list: { RoleID: number }[]): Role | null {
+  if (!list || list.length === 0) return null;
   const roles = list.map((r) => ROLE_BY_ID[r.RoleID]).filter(Boolean) as Role[];
-  if (roles.length === 0) return null;
+  if (roles.length === 0) return "reader";
   return ROLE_RANK.find((r) => roles.includes(r)) ?? roles[0];
 }
 
@@ -105,10 +114,10 @@ export function AuthProvider({
       const role = roleFromList(lr.RoleList ?? []);
       if (!role) throw new Error("noPerms"); // account has no transportation roles
       const u: User = {
-        name: lr.Name?.trim() || email,
+        name: lr.Name?.trim() || lr.UserName?.trim() || email,
         email,
         role,
-        branch: lr.BranchId != null ? String(lr.BranchId) : "",
+        branch: (lr.BranchId ?? lr.BranchID) != null ? String(lr.BranchId ?? lr.BranchID) : "",
         token: lr.Data,
         companyName,
       };

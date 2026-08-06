@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="GarasTransport.Api/GarasTransport.Api.csproj" />
+  <Project Path="GarasTransport.Application/GarasTransport.Application.csproj" />
+  <Project Path="GarasTransport.Domain/GarasTransport.Domain.csproj" />
+  <Project Path="GarasTransport.Infrastructure/GarasTransport.Infrastructure.csproj" />
+</Solution>

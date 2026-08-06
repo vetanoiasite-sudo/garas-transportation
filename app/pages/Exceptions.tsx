@@ -7,6 +7,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { can } from "@/lib/types";
 import type { Exception, Period } from "@/lib/types";
 import { getExceptions, addException, getCapacityNumbers, periodToApi, type ExceptionInput, type CapacityNumbers } from "@/lib/services/exceptions";
+import { formatDate } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
@@ -63,7 +64,7 @@ export default function ExceptionsPage() {
     { key: "passenger", header: t("common.passenger"), render: (r) => <b style={{ color: "var(--text-heading)" }}>{r.passenger}</b> },
     { key: "routeName", header: t("filter.route") },
     { key: "station", header: t("common.station"), priority: "secondary" },
-    { key: "date", header: t("common.date"), render: (r) => r.date || `${r.fromDate} → ${r.toDate}` },
+    { key: "date", header: t("common.date"), render: (r) => r.date ? formatDate(r.date) : `${formatDate(r.fromDate)} → ${formatDate(r.toDate)}` },
     { key: "period", header: t("common.direction"), render: (r) => <span className="badge badge-blue">{t(periodLabel[r.period])}</span> },
     { key: "reason", header: t("common.reason"), priority: "secondary" },
     { key: "contact", header: t("exc.contact"), priority: "secondary" },

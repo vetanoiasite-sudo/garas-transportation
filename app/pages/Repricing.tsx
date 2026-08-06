@@ -7,6 +7,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { can } from "@/lib/types";
 import type { Repricing } from "@/lib/types";
 import { getRepricings, createRepricing, approveRepricing, rejectRepricing } from "@/lib/services/repricing";
+import { formatDate } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
@@ -53,7 +54,7 @@ export default function RepricingPage() {
   const columns: Column<Repricing>[] = [
     { key: "amount", header: t("rep.increaseAmount"), render: (r) => <b>{r.amount}{r.mode === "percent" ? "%" : " ج.م"}</b> },
     { key: "createdBy", header: t("rep.createdBy") },
-    { key: "createdAt", header: t("rep.createdAt") },
+    { key: "createdAt", header: t("rep.createdAt"), render: (r) => formatDate(r.createdAt) },
     { key: "forAllLines", header: t("rep.allLines"), render: (r) => (r.forAllLines ? <span className="badge badge-blue">{t("common.yes")}</span> : <span className="badge badge-gray">{t("common.selected")}</span>) },
     { key: "approved", header: t("rep.approval"), render: (r) => (r.approved ? <span className="badge badge-green">{t("status.approved")}</span> : <span className="badge badge-amber">{t("status.pending")}</span>) },
     { key: "approvedBy", header: t("rep.approvedBy"), render: (r) => r.approvedBy ?? <span className="muted">—</span> },

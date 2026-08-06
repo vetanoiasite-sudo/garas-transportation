@@ -72,13 +72,13 @@ export const passengers: Passenger[] = [
 /* Login users (the `User` table — admins & supervisors), NOT HR employees.
    Each user's `role` drives permission gating. */
 export const users: SystemUser[] = [
-  { id: "u1", name: "أحمد النظام", email: "admin@garas.co", mobile: "01000000001", role: "super_admin", active: true },
-  { id: "u2", name: "سارة المشرفة", email: "super@garas.co", mobile: "01000000002", role: "super_admin", active: true },
-  { id: "u3", name: "محمد المواصلات", email: "transport@garas.co", mobile: "01000000003", role: "transportation_admin", active: true },
-  { id: "u4", name: "خالد الموظفين", email: "hr@garas.co", mobile: "01000000004", role: "hr_admin", active: true },
-  { id: "u5", name: "علي المشرف", email: "ali.sup@garas.co", mobile: "01000000005", role: "supervisor", active: true },
-  { id: "u6", name: "منى صابر", email: "mona.sup@garas.co", mobile: "01000000006", role: "supervisor", active: true },
-  { id: "u7", name: "قارئ التقارير", email: "reader@garas.co", mobile: "01000000007", role: "reader", active: false },
+  { id: "u1", name: "أحمد النظام", email: "admin@garas.co", mobile: "01000000001", role: "super_admin", roles: ["super_admin"], active: true },
+  { id: "u2", name: "سارة المشرفة", email: "super@garas.co", mobile: "01000000002", role: "super_admin", roles: ["super_admin"], active: true },
+  { id: "u3", name: "محمد المواصلات", email: "transport@garas.co", mobile: "01000000003", role: "transportation_admin", roles: ["transportation_admin"], active: true },
+  { id: "u4", name: "خالد الموظفين", email: "hr@garas.co", mobile: "01000000004", role: "hr_admin", roles: ["hr_admin"], active: true },
+  { id: "u5", name: "علي المشرف", email: "ali.sup@garas.co", mobile: "01000000005", role: "supervisor", roles: ["supervisor"], active: true },
+  { id: "u6", name: "منى صابر", email: "mona.sup@garas.co", mobile: "01000000006", role: "supervisor", roles: ["supervisor"], active: true },
+  { id: "u7", name: "قارئ التقارير", email: "reader@garas.co", mobile: "01000000007", role: "reader", roles: ["reader"], active: false },
 ];
 
 export const vehicles: Vehicle[] = [

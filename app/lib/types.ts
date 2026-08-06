@@ -37,14 +37,15 @@ export type Permission =
   | "touch.attendance"
   | "manage.exceptions"
   | "mobile.attendance"
-  | "manage.users"; // create/edit login users & assign their transportation role
+  | "manage.users" // create/edit login users & assign their transportation role
+  | "view.financialReports"; // supplier account statement + line cost report (super admin only)
 
 const matrix: Record<Role, Permission[]> = {
   super_admin: [
     "crud.entities", "approve.line", "manage.vehicles", "approve.vehicle",
     "add.payment", "create.repricing", "approve.repricing", "reject.repricing",
     "create.supplier", "print.invoice", "manage.passengers", "touch.attendance",
-    "manage.exceptions", "manage.users",
+    "manage.exceptions", "manage.users", "view.financialReports",
   ],
   // Transportation operations + the money side (statements/deductions/repricing/
   // payments), but no approvals, no user management, no passengers/attendance.
@@ -146,7 +147,10 @@ export interface SystemUser {
   name: string;
   email: string;
   mobile: string;
+  /** Strongest role (display/back-compat) — first of `roles` by rank. */
   role: Role;
+  /** All active roles (multi-role accounts). */
+  roles: Role[];
   active: boolean;
 }
 

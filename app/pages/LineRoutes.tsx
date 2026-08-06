@@ -9,6 +9,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { canAdd } from "@/lib/types";
 import { apiGet } from "@/lib/api/client";
 import { getRoutes } from "@/lib/services/routes";
+import { formatTime } from "@/lib/datetime";
 import type { RouteItem } from "@/lib/types";
 import PageHeader from "@/components/ui/PageHeader";
 import Dialog from "@/components/ui/Dialog";
@@ -124,7 +125,7 @@ export default function LineRoutesPage() {
             <DetailRow label={t("route.fullCapacityPassengers")} value={`${details.fullCapacity} / ${details.usersInRoute}`} />
             <DetailRow label={t("route.actualCapacityAttendance")} value={`${details.actualCapacity} / ${details.attended}`} />
             <DetailRow label={t("route.stationsCount")} value={String(details.stationCount)} />
-            <DetailRow label={t("route.times")} value={<span className="row" style={{ gap: 8 }}><IconClock style={{ width: 14, height: 14 }} />{details.fromTime ?? "—"} {details.toTime ? `→ ${details.toTime}` : ""}</span>} />
+            <DetailRow label={t("route.times")} value={<span className="row" style={{ gap: 8 }}><IconClock style={{ width: 14, height: 14 }} />{details.fromTime ? formatTime(details.fromTime) : "—"} {details.toTime ? `→ ${formatTime(details.toTime)}` : ""}</span>} />
             <DetailRow label={t("route.otherIdentifier")} value={`C: ${details.religionC} · M: ${details.religionM}`} />
           </div>
         </Dialog>

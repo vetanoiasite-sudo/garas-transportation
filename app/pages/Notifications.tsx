@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useToast } from "@/contexts/ToastContext";
 import { getNotifications, markRead, markAllRead, type NotificationItem } from "@/lib/services/notifications";
+import { formatDateTime } from "@/lib/datetime";
 import PageHeader from "@/components/ui/PageHeader";
 import { LoadingState, EmptyState } from "@/components/ui/EmptyState";
 import { IconBell, IconCheck } from "@/components/ui/Icons";
@@ -60,10 +61,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const fmt = (iso: string) => {
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleString(locale === "ar" ? "ar-EG" : "en-GB");
-  };
+  const fmt = (iso: string) => formatDateTime(iso);
 
   return (
     <div className="stack">

@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+
+# User-specific / IDE
+*.user
+.vs/
+.idea/
+
+# Local environment overrides
+appsettings.*.Local.json

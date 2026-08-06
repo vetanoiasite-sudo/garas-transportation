@@ -6,6 +6,7 @@ import { useToast } from "@/contexts/ToastContext";
 import type { AttendanceRecord } from "@/lib/types";
 import { getAttendance, downloadAttendanceExcel } from "@/lib/services/attendance";
 import { saveBlob } from "@/lib/download";
+import { formatDate, formatDateTime } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
@@ -24,15 +25,8 @@ interface RouteRow { Id: number; NameOfRoute: string }
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
-// Render a check-in/out timestamp as a short readable "yyyy-MM-dd HH:mm".
-// Falls back to the raw value if it isn't a parseable ISO date.
-const fmtStamp = (v?: string): string => {
-  if (!v) return "";
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return v;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+// Check-in/out timestamps in the house format: "2026 - 8 - 5 2:08 pm".
+const fmtStamp = (v?: string): string => formatDateTime(v);
 
 export default function AttendancePage() {
   const { t } = useLocale();
@@ -215,9 +209,9 @@ export default function AttendancePage() {
               <tbody>
                 {history.history!.map((h, i) => (
                   <tr key={i}>
-                    <td>{h.date}</td>
-                    <td>{h.checkIn ?? "—"}</td>
-                    <td>{h.checkOut ?? "—"}</td>
+                    <td>{formatDate(h.date)}</td>
+                    <td>{h.checkIn ? fmtStamp(h.checkIn) : "—"}</td>
+                    <td>{h.checkOut ? fmtStamp(h.checkOut) : "—"}</td>
                     <td>{h.attended ? <span className="badge badge-green">{t("status.attended")}</span> : <span className="badge badge-red">{t("status.absent")}</span>}</td>
                   </tr>
                 ))}

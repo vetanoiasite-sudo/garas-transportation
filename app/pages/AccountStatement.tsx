@@ -11,6 +11,7 @@ import { getMonthlyStatement, getPayments, addPayment, getSuppliers, downloadSta
 import { getRoutes } from "@/lib/services/routes";
 import { addDeduction } from "@/lib/services/deductions";
 import { saveBlob } from "@/lib/download";
+import { formatDate } from "@/lib/datetime";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import Dialog from "@/components/ui/Dialog";
@@ -24,6 +25,8 @@ const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.messag
 const remaining = (r: StatementRow) => r.totalDue - r.totalDeductions - r.normalPayments - r.advancePayments;
 const money = (n: number) => n.toLocaleString("ar-EG") + " ج.م";
 
+// Access is restricted to super admins — enforced by the RequirePerm wrapper
+// in App.tsx (view.financialReports).
 export default function StatementPage() {
   const { t } = useLocale();
   const { user } = useAuth();
@@ -472,9 +475,9 @@ function RoundsDialog({ row, month, year, onClose }: { row: StatementRow; month:
                   <td>{i + 1}</td>
                   <td>{r.routeName || "—"}</td>
                   <td>{r.serial || "—"}</td>
-                  <td>{r.dateOfRound || "—"}</td>
-                  <td>{r.checkIn || "—"}</td>
-                  <td>{r.checkOut || "—"}</td>
+                  <td>{r.dateOfRound ? formatDate(r.dateOfRound) : "—"}</td>
+                  <td>{r.checkIn ? formatDate(r.checkIn) : "—"}</td>
+                  <td>{r.checkOut ? formatDate(r.checkOut) : "—"}</td>
                   <td>{money(r.price)}</td>
                 </tr>
               ))}

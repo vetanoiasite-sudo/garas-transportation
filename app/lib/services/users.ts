@@ -29,9 +29,10 @@ const ID_TO_ROLE: Record<number, Role> = {
 // Highest privilege first — a user with several roles shows its strongest one.
 const ROLE_RANK: Role[] = ["super_admin", "transportation_admin", "hr_admin", "supervisor", "reader", "passenger"];
 
-function primaryRole(list: { RoleID: number }[]): Role {
-  const roles = list.map((r) => ID_TO_ROLE[r.RoleID]).filter(Boolean) as Role[];
-  return ROLE_RANK.find((r) => roles.includes(r)) ?? roles[0] ?? "reader";
+// All mapped roles, ordered strongest-first (rank order, no duplicates).
+function allRoles(list: { RoleID: number }[]): Role[] {
+  const roles = new Set(list.map((r) => ID_TO_ROLE[r.RoleID]).filter(Boolean) as Role[]);
+  return ROLE_RANK.filter((r) => roles.has(r));
 }
 
 interface UserRow {
@@ -44,12 +45,14 @@ interface UserRow {
 }
 
 function toSystemUser(u: UserRow): SystemUser {
+  const roles = allRoles(u.RoleList ?? []);
   return {
     id: String(u.Id),
     name: u.Name ?? "",
     email: u.Email ?? "",
     mobile: u.Mobile ?? "",
-    role: primaryRole(u.RoleList ?? []),
+    role: roles[0] ?? "reader",
+    roles: roles.length ? roles : ["reader"],
     active: !!u.Active,
   };
 }
@@ -72,7 +75,14 @@ export async function getUsers(query: { role?: Role; pageNo?: number; noOfItems?
   };
 }
 
-/** POST /User/AddUser — create a login user with a role. Returns the new id. */
+// Multi-role payload: RoleIds carries the full set; RoleId (strongest) rides
+// along for backward compatibility.
+const roleIdsBody = (roles: Role[]) => {
+  const ids = [...new Set(roles.map((r) => ROLE_TO_ID[r]))];
+  return { RoleIds: ids, RoleId: ids[0] };
+};
+
+/** POST /User/AddUser — create a login user with one or more roles. Returns the new id. */
 export async function addUser(payload: Omit<SystemUser, "id"> & { password?: string }): Promise<string> {
   const res = await apiRaw<unknown>("POST", "/User/AddUser", {
     body: {
@@ -80,14 +90,14 @@ export async function addUser(payload: Omit<SystemUser, "id"> & { password?: str
       Email: payload.email,
       Mobile: payload.mobile,
       Password: payload.password,
-      RoleId: ROLE_TO_ID[payload.role],
+      ...roleIdsBody(payload.roles.length ? payload.roles : [payload.role]),
       Active: payload.active,
     },
   });
   return String((res as { Id?: string | number }).Id ?? "");
 }
 
-/** POST /User/UpdateUser — edit a login user (profile + role + status). */
+/** POST /User/UpdateUser — edit a login user (profile + roles + status). */
 export async function updateUser(payload: SystemUser & { password?: string }): Promise<void> {
   await apiRaw("POST", "/User/UpdateUser", {
     body: {
@@ -96,7 +106,7 @@ export async function updateUser(payload: SystemUser & { password?: string }): P
       Email: payload.email,
       Mobile: payload.mobile,
       Password: payload.password || undefined,
-      RoleId: ROLE_TO_ID[payload.role],
+      ...roleIdsBody(payload.roles.length ? payload.roles : [payload.role]),
       Active: payload.active,
     },
   });

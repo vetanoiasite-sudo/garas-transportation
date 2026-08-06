@@ -11,7 +11,7 @@ import DataTable, { type Column } from "@/components/ui/DataTable";
 import Dialog from "@/components/ui/Dialog";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { ActiveBadge } from "@/components/ui/Badge";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Field, Input } from "@/components/ui/Field";
 import { IconPlus, IconEdit, IconTrash } from "@/components/ui/Icons";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
@@ -63,7 +63,14 @@ export default function UsersPage() {
     { key: "name", header: t("common.name"), render: (r) => <b style={{ color: "var(--text-heading)" }}>{r.name}</b> },
     { key: "email", header: t("login.email") },
     { key: "mobile", header: t("common.mobile"), priority: "secondary" },
-    { key: "role", header: t("users.role"), render: (r) => <span className="badge badge-blue">{t(roleLabelKey[r.role])}</span> },
+    {
+      key: "role", header: t("users.role"),
+      render: (r) => (
+        <span className="row wrap" style={{ gap: 4 }}>
+          {r.roles.map((ro) => <span key={ro} className="badge badge-blue">{t(roleLabelKey[ro])}</span>)}
+        </span>
+      ),
+    },
     { key: "active", header: t("users.statusHeader"), render: (r) => <ActiveBadge active={r.active} /> },
     ...(canManage
       ? [{
@@ -124,21 +131,24 @@ function UserForm({ existing, onClose, onSaved }: { existing?: SystemUser; onClo
   const [name, setName] = useState(existing?.name ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
   const [mobile, setMobile] = useState(existing?.mobile ?? "");
-  const [role, setRole] = useState<Role | "">(existing?.role ?? "");
+  const [roles, setRoles] = useState<Role[]>(existing?.roles ?? []);
   const [active, setActive] = useState(existing?.active ?? true);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const toggleRole = (r: Role) =>
+    setRoles((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]));
+
   const submit = async () => {
-    if (!name.trim() || !email.trim() || !role) { toast(t("common.completeFields"), "error"); return; }
+    if (!name.trim() || !email.trim() || roles.length === 0) { toast(t("common.completeFields"), "error"); return; }
     if (!existing && !password.trim()) { toast(t("common.completeFields"), "error"); return; }
     setSaving(true);
     try {
       if (existing) {
-        await updateUser({ id: existing.id, name, email, mobile, role: role as Role, active, password: password || undefined });
+        await updateUser({ id: existing.id, name, email, mobile, role: roles[0], roles, active, password: password || undefined });
         toast(t("users.updated"));
       } else {
-        await addUser({ name, email, mobile, role: role as Role, active, password });
+        await addUser({ name, email, mobile, role: roles[0], roles, active, password });
         toast(t("users.added"));
       }
       await onSaved();
@@ -174,11 +184,15 @@ function UserForm({ existing, onClose, onSaved }: { existing?: SystemUser; onClo
         <Field label={t("common.mobile")}>
           <Input inputMode="numeric" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))} />
         </Field>
-        <Field label={t("users.role")} required>
-          <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="">{t("users.selectRole")}</option>
-            {roleOptions.map((r) => <option key={r} value={r}>{t(roleLabelKey[r])}</option>)}
-          </Select>
+        <Field label={t("users.role")} required hint={t("users.rolesHint")}>
+          <div className="stack" style={{ gap: 6, border: "1px solid var(--border-base)", borderRadius: "var(--radius-base)", padding: "8px 10px" }}>
+            {roleOptions.map((r) => (
+              <label key={r} className="checkbox-row" style={{ margin: 0 }}>
+                <input type="checkbox" checked={roles.includes(r)} onChange={() => toggleRole(r)} />
+                {t(roleLabelKey[r])}
+              </label>
+            ))}
+          </div>
         </Field>
       </div>
       <Field label={t("login.password")} required={!existing} hint={t("users.passwordHint")}>

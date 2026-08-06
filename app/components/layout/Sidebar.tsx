@@ -38,7 +38,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
     { href: "/vehicles", labelKey: "nav.vehicles", icon: IconTruck },
     { href: "/passengers", labelKey: "nav.employees", icon: IconUsers, perm: "manage.passengers" },
     { href: "/suppliers", labelKey: "nav.suppliers", icon: IconBuilding },
-    { href: "/account-statement", labelKey: "nav.statement", icon: IconReceipt },
+    { href: "/account-statement", labelKey: "nav.statement", icon: IconReceipt, perm: "view.financialReports" },
     { href: "/deductions", labelKey: "nav.deductions", icon: IconMoney },
     { href: "/repricing", labelKey: "nav.repricing", icon: IconTag },
     { href: "/exceptions", labelKey: "nav.exceptions", icon: IconSwap },

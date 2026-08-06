@@ -108,7 +108,9 @@ export default function DashboardPage() {
       <div className="row-between wrap">
         <h1 className="page-title">{t("dash.title")}</h1>
         <div className="header-actions">
-          <Link to={p("/costs")} className="btn btn-secondary btn-sm"><IconReceipt />{t("dash.lineCostReport")}</Link>
+          {can(user?.role, "view.financialReports") && (
+            <Link to={p("/costs")} className="btn btn-secondary btn-sm"><IconReceipt />{t("dash.lineCostReport")}</Link>
+          )}
           <Link to={p("/attendance")} className="btn btn-secondary btn-sm"><IconTrend />{t("dash.viewAttendance")}</Link>
           {can(user?.role, "touch.attendance") && (
             <button className="btn btn-brand btn-sm"><IconCheck />{t("dash.touchAttendance")}</button>

@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { can, type Supplier } from "@/lib/types";
 import { getSuppliers } from "@/lib/services/suppliers";
+import { formatDate } from "@/lib/datetime";
 import PageHeader from "@/components/ui/PageHeader";
 import { EmptyState, LoadingState } from "@/components/ui/EmptyState";
 import { IconPlus, IconBuilding, IconEye, IconSearch } from "@/components/ui/Icons";
@@ -64,7 +65,7 @@ export default function SuppliersPage() {
               </div>
               <div>
                 <div className="section-title">{s.name}</div>
-                <div className="muted text-sm">{t("supp.createdOn")} {s.createdAt}</div>
+                <div className="muted text-sm">{t("supp.createdOn")} {formatDate(s.createdAt)}</div>
               </div>
               <div className="row gap-2 wrap text-xs">
                 <span className="info-chip">{s.activeRoutes} {t("supp.activeRoutesSuffix")}</span>

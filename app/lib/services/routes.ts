@@ -313,22 +313,27 @@ export async function getRouteUsers(routeId: string): Promise<PassengerAssignmen
   return (res.Data ?? []).map(toAssignment);
 }
 
-/** POST AddTransportationEmployee — assign a passenger to a route (Data[] + route header). */
-export async function addRouteUser(routeId: string, input: RouteUserInput): Promise<void> {
+/** POST AddTransportationEmployee — assign one or more passengers to a route in a
+ *  single request (Data[] + route header). The backend bulk-inserts every item. */
+export async function addRouteUsers(routeId: string, inputs: RouteUserInput[]): Promise<void> {
+  if (inputs.length === 0) return;
   await apiPost(
     "AddTransportationEmployee",
     {
-      Data: [
-        {
-          hrUserId: Number(input.hrUserId),
-          TransportationVehicleRouteDirectionId: input.directionId ? Number(input.directionId) : undefined,
-          Active: true,
-          period: periodKey(input.period),
-        },
-      ],
+      Data: inputs.map((input) => ({
+        hrUserId: Number(input.hrUserId),
+        TransportationVehicleRouteDirectionId: input.directionId ? Number(input.directionId) : undefined,
+        Active: true,
+        period: periodKey(input.period),
+      })),
     },
     { TransportationVehicleRouteId: routeId },
   );
+}
+
+/** POST AddTransportationEmployee — assign a single passenger (thin wrapper over the bulk call). */
+export async function addRouteUser(routeId: string, input: RouteUserInput): Promise<void> {
+  await addRouteUsers(routeId, [input]);
 }
 
 /** POST DeleteTransportationEmployee — remove a passenger from a route (Id header). */

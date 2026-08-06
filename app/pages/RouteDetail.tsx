@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -12,18 +12,18 @@ import {
   getStations,
   getRouteUsers,
   deleteStation,
-  addRouteUser,
+  addRouteUsers,
   deleteRouteUser,
   deleteRoute,
 } from "@/lib/services/routes";
 import { getPassengers } from "@/lib/services/passengers";
+import { formatTime } from "@/lib/datetime";
 import type { RouteItem, Station, PassengerAssignment, Period } from "@/lib/types";
 import PageHeader from "@/components/ui/PageHeader";
 import Dialog from "@/components/ui/Dialog";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Combobox from "@/components/ui/Combobox";
-import { Field } from "@/components/ui/Field";
-import SegmentedControl from "@/components/ui/SegmentedControl";
+import { Field, Select } from "@/components/ui/Field";
 import StationForm from "@/components/routes/StationForm";
 import RouteForm from "@/components/routes/RouteForm";
 import { EmptyState, LoadingState } from "@/components/ui/EmptyState";
@@ -83,9 +83,12 @@ export default function RouteDetailPage() {
     }
   };
 
-  const assignPassenger = async (input: { passengerId: string; stationId?: string; period: Period }) => {
-    await addRouteUser(routeId, { hrUserId: input.passengerId, directionId: input.stationId, period: input.period });
-    toast(t("route.passengerAssigned"));
+  const assignPassengers = async (inputs: { passengerId: string; stationId?: string; period: Period }[]) => {
+    await addRouteUsers(
+      routeId,
+      inputs.map((i) => ({ hrUserId: i.passengerId, directionId: i.stationId, period: i.period })),
+    );
+    toast(inputs.length > 1 ? t("route.passengersAssigned") : t("route.passengerAssigned"));
     await load();
   };
 
@@ -131,7 +134,7 @@ export default function RouteDetailPage() {
         <>
       {/* route info strip */}
       <div className="card card-pad row wrap gap-4">
-        <span className="info-chip"><IconClock style={{ width: 14, height: 14 }} />{route?.fromTime ?? "—"} {route?.toTime ? `→ ${route.toTime}` : ""}</span>
+        <span className="info-chip"><IconClock style={{ width: 14, height: 14 }} />{route?.fromTime ? formatTime(route.fromTime) : "—"} {route?.toTime ? `→ ${formatTime(route.toTime)}` : ""}</span>
         <span className="info-chip">{t("filter.supplier")}: {route?.supplier}</span>
         <span className="info-chip">{t("filter.driver")}: {route?.driver}</span>
         <span className="info-chip"><IconUser style={{ width: 14, height: 14 }} />{route?.supervisor}</span>
@@ -249,7 +252,7 @@ export default function RouteDetailPage() {
         <AssignPassengerDialog
           stations={stations}
           onClose={() => setAssignOpen(false)}
-          onAssign={assignPassenger}
+          onAssign={assignPassengers}
         />
       )}
 
@@ -266,6 +269,14 @@ export default function RouteDetailPage() {
   );
 }
 
+/** One row of the multi-add form: a passenger plus its own station + direction. */
+interface AssignRow {
+  key: string;
+  passengerId?: string;
+  station?: string;
+  period: Period;
+}
+
 function AssignPassengerDialog({
   stations,
   onClose,
@@ -273,13 +284,12 @@ function AssignPassengerDialog({
 }: {
   stations: Station[];
   onClose: () => void;
-  onAssign: (input: { passengerId: string; stationId?: string; period: Period }) => Promise<void>;
+  onAssign: (inputs: { passengerId: string; stationId?: string; period: Period }[]) => Promise<void>;
 }) {
   const { t } = useLocale();
   const { toast } = useToast();
-  const [passenger, setPassenger] = useState<string | undefined>();
-  const [station, setStation] = useState<string | undefined>();
-  const [period, setPeriod] = useState<Period>("both");
+  const rowSeq = useRef(1);
+  const [rows, setRows] = useState<AssignRow[]>([{ key: "r0", period: "both" }]);
   const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
   // Real passengers from the backend — using the mock list here sent bogus ids
@@ -299,11 +309,27 @@ function AssignPassengerDialog({
     return () => { alive = false; };
   }, []);
 
+  const stationOptions = stations.map((s) => ({ value: s.id, label: s.name }));
+
+  const addRow = () =>
+    setRows((rs) => [...rs, { key: `r${rowSeq.current++}`, period: "both" }]);
+  const patchRow = (key: string, p: Partial<AssignRow>) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  const removeRow = (key: string) =>
+    setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.key !== key) : rs));
+
+  // Passengers already chosen in *other* rows can't be picked again.
+  const optionsFor = (row: AssignRow) =>
+    passengerOptions.filter(
+      (o) => o.value === row.passengerId || !rows.some((r) => r.key !== row.key && r.passengerId === o.value),
+    );
+
   const submit = async () => {
-    if (!passenger) { setError(true); return; }
+    const chosen = rows.filter((r) => r.passengerId);
+    if (chosen.length === 0) { setError(true); return; }
     setSaving(true);
     try {
-      await onAssign({ passengerId: passenger, stationId: station, period });
+      await onAssign(chosen.map((r) => ({ passengerId: r.passengerId!, stationId: r.station, period: r.period })));
       onClose();
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
@@ -315,6 +341,7 @@ function AssignPassengerDialog({
   return (
     <Dialog
       title={t("route.assignPassenger")}
+      size="lg"
       onClose={onClose}
       footer={
         <>
@@ -323,24 +350,51 @@ function AssignPassengerDialog({
         </>
       }
     >
-      <Field label={t("common.passenger")} required error={error ? t("route.selectPassengerError") : undefined}>
-        <Combobox options={passengerOptions} value={passenger} onChange={setPassenger} placeholder={t("route.selectPassenger")} />
-      </Field>
-      <Field label={t("common.station")}>
-        <Combobox options={stations.map((s) => ({ value: s.id, label: s.name }))} value={station} onChange={setStation} placeholder={t("station.select")} />
-      </Field>
-      <div className="field">
-        <span className="label" id="assign-period-label">{t("common.direction")} <span className="req" aria-hidden>*</span></span>
-        <SegmentedControl<Period>
-          value={period}
-          onChange={setPeriod}
-          ariaLabelledby="assign-period-label"
-          segments={[
-            { value: "both", label: t("period.both") },
-            { value: "go", label: t("period.go") },
-            { value: "return", label: t("period.return") },
-          ]}
-        />
+      <div className="stack" style={{ gap: "var(--space-3)" }}>
+        {rows.map((r) => (
+          <div key={r.key} className="card card-pad">
+            <div className="row gap-3 wrap" style={{ alignItems: "flex-end" }}>
+              <Field label={t("common.passenger")} required className="grow" style={{ margin: 0, minWidth: 180 }}>
+                <Combobox
+                  options={optionsFor(r)}
+                  value={r.passengerId}
+                  onChange={(v) => { patchRow(r.key, { passengerId: v }); if (v) setError(false); }}
+                  placeholder={t("route.selectPassenger")}
+                />
+              </Field>
+              <Field label={t("common.station")} style={{ margin: 0, minWidth: 150 }}>
+                <Combobox
+                  options={stationOptions}
+                  value={r.station}
+                  onChange={(v) => patchRow(r.key, { station: v })}
+                  placeholder={t("station.select")}
+                />
+              </Field>
+              <Field label={t("common.direction")} required style={{ margin: 0, minWidth: 130 }}>
+                <Select value={r.period} onChange={(e) => patchRow(r.key, { period: e.target.value as Period })}>
+                  <option value="both">{t("period.both")}</option>
+                  <option value="go">{t("period.go")}</option>
+                  <option value="return">{t("period.return")}</option>
+                </Select>
+              </Field>
+              <button
+                type="button"
+                className="icon-btn danger"
+                aria-label={t("action.delete")}
+                disabled={rows.length === 1}
+                onClick={() => removeRow(r.key)}
+              >
+                <IconTrash />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {error && <div className="text-sm" style={{ color: "var(--color-danger)", marginTop: "var(--space-2)" }}>{t("route.selectAtLeastOne")}</div>}
+
+      <div style={{ marginTop: "var(--space-3)" }}>
+        <button className="btn btn-outline-brand btn-sm" onClick={addRow}><IconPlus />{t("route.addAnother")}</button>
       </div>
     </Dialog>
   );

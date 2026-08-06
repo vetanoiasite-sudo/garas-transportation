@@ -1,7 +1,8 @@
 import { createBrowserRouter, createHashRouter, Navigate, Outlet, useParams } from "react-router-dom";
 import { isLocale, defaultLocale } from "@/lib/i18n";
+import { can, type Permission } from "@/lib/types";
 import { LocaleProvider } from "@/contexts/LocaleContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import DirectionSync from "@/components/DirectionSync";
 import AppShell from "@/components/layout/AppShell";
@@ -45,6 +46,18 @@ function LocaleLayout() {
   );
 }
 
+/** Role gate for a page: renders it only when the signed-in user's role has
+ *  the permission; anyone else (including a pasted direct URL) is bounced to
+ *  the dashboard. AppShell already guarantees a signed-in user upstream. */
+function RequirePerm({ perm, children }: { perm: Permission; children: React.ReactNode }) {
+  const { locale } = useParams();
+  const { user, ready } = useAuth();
+  if (ready && user && !can(user.role, perm)) {
+    return <Navigate to={`/${locale ?? defaultLocale}/dashboard`} replace />;
+  }
+  return <>{children}</>;
+}
+
 // The offline/single-file demo uses hash routing so it works at any URL/base
 // (e.g. a published static page) with no server rewrites.
 const makeRouter = import.meta.env.VITE_DEMO === "true" ? createHashRouter : createBrowserRouter;
@@ -72,13 +85,13 @@ export const router = makeRouter([
           { path: "passengers/:id", element: <PassengerProfilePage /> },
           { path: "suppliers", element: <SuppliersPage /> },
           { path: "suppliers/:id", element: <SupplierProfilePage /> },
-          { path: "account-statement", element: <AccountStatementPage /> },
+          { path: "account-statement", element: <RequirePerm perm="view.financialReports"><AccountStatementPage /></RequirePerm> },
           { path: "deductions", element: <DeductionsPage /> },
           { path: "repricing", element: <RepricingPage /> },
           { path: "exceptions", element: <ExceptionsPage /> },
           { path: "users", element: <UsersPage /> },
           { path: "notifications", element: <NotificationsPage /> },
-          { path: "costs", element: <CostsPage /> },
+          { path: "costs", element: <RequirePerm perm="view.financialReports"><CostsPage /></RequirePerm> },
         ],
       },
       { path: "*", element: <Navigate to="dashboard" replace /> },
