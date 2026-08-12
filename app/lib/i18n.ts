@@ -95,7 +95,7 @@ const ar: Dict = {
   "login.remember": "تذكرني",
   "login.invalid": "بيانات الدخول غير صحيحة",
   "login.noPerms": "هذا الحساب لا يملك صلاحيات النقل",
-  "login.network": "تعذّر الاتصال بالخادم. تأكد من تشغيل الخادم على http://localhost:4000 ثم أعد المحاولة.",
+  "login.network": "تعذّر الاتصال بالخادم. تأكد من تشغيل الخادم على http://192.168.1.151:8888 ثم أعد المحاولة.",
 
   // dashboard
   "dash.title": "لوحة المعلومات",
@@ -558,7 +558,7 @@ const en: Dict = {
   "login.remember": "Remember me",
   "login.invalid": "Invalid credentials",
   "login.noPerms": "This account has no transportation permissions",
-  "login.network": "Can't reach the server. Make sure the backend is running at http://localhost:4000, then try again.",
+  "login.network": "Can't reach the server. Make sure the backend is running at http://192.168.1.151:8888, then try again.",
 
   "dash.title": "Dashboard",
   "dash.routeRail": "Routes",

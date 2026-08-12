@@ -44,18 +44,18 @@ prisma/
 4. `npm run prisma:generate`
 5. `npm run prisma:push`  (or `npm run prisma:migrate` for migration history)
 6. `npm run seed`
-7. `npm run start:dev`  → `http://localhost:4000`
+7. `npm run start:dev`  → `http://localhost:8888`
 
 ## Try it
 ```bash
 # Login (no auth headers)
-curl -X POST http://localhost:4000/User/Login \
+curl -X POST http://localhost:8888/User/Login \
   -H "Content-Type: application/json" \
   -d '{"Email":"admin@garas.co","Password":"demo1234","CompanyName":"demo"}'
 # → { "Result": true, "Data": "<UserToken>", "RoleList": [...], ... }
 
 # Protected call (send the token + company as headers)
-curl http://localhost:4000/api/Transportation/getAllTransportationLine \
+curl http://localhost:8888/api/Transportation/getAllTransportationLine \
   -H "CompanyName: demo" -H "UserToken: <UserToken>" -H "PageNo: 1" -H "NoOfItems: 20"
 ```
 

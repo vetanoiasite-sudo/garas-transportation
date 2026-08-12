@@ -29,7 +29,7 @@ to the HTTP contract** the Flutter/Next clients depend on:
 | `AllowedCompanies`          | `ALLOWED_COMPANIES` | `demo`                                    |
 | `TokenSecret`               | `TOKEN_SECRET`      | `garas-dev-secret-change-me-please-32b`   |
 | `SessionHours`              | —                   | `24`                                      |
-| —                           | `PORT`              | `4000`                                    |
+| —                           | `PORT`              | `8888`                                    |
 | —                           | `SKIP_DB_INIT`      | (unset) — set `true` to skip migrate+seed |
 
 ## Run
@@ -41,14 +41,14 @@ dotnet run
 
 On startup the app **applies migrations and seeds** the roles, one login per panel
 role, three supervisors, and the C/M lookup (idempotent). It then listens on
-`http://0.0.0.0:4000`. Swagger UI is at `/swagger` in Development.
+`http://0.0.0.0:8888`. Swagger UI is at `/swagger` in Development.
 
 Demo logins (all password `demo1234`, `CompanyName: demo`):
 `admin@garas.co` (Super Admin), `transport@garas.co` (Admin), `hr@garas.co`
 (HR Admin), `viewer@garas.co` (Reader).
 
 ```bash
-curl -X POST http://localhost:4000/User/Login \
+curl -X POST http://localhost:8888/User/Login \
   -H "Content-Type: application/json" \
   -d '{"Email":"admin@garas.co","Password":"demo1234","CompanyName":"demo"}'
 ```

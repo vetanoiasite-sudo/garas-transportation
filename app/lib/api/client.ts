@@ -11,7 +11,7 @@
 import { AUTH_COOKIE } from "@/lib/auth";
 import { demoResponse } from "@/lib/api/demo";
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+export const API_BASE = import.meta.env.VITE_API_URL ?? "http://192.168.1.151:8888";
 // Offline demo build: serve canned data, never touch a backend.
 const DEMO = import.meta.env.VITE_DEMO === "true";
 

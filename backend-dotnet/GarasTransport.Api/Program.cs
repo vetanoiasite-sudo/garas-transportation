@@ -77,7 +77,7 @@ if (Environment.GetEnvironmentVariable("SKIP_DB_INIT") != "true")
 
 // Bind all interfaces on the configured port (containers/hosts). Default 4000
 // to match the NestJS backend.
-var port = Environment.GetEnvironmentVariable("PORT") ?? "4000";
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8888";
 app.Urls.Add($"http://0.0.0.0:{port}");
 
 app.Run();
