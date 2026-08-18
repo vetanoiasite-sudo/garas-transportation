@@ -36,12 +36,16 @@ interface Row {
   saved: boolean;
   editing: boolean;
   dirty: boolean;
+  directionId?: number;
 }
 
 const toRow = (r: PassengerRoute): Row => ({
   id: `m${r.id}`,
   membershipId: r.id,
   routeId: r.routeId,
+  // UpdateRouteEmployee overwrites every column — without this the saved
+  // station assignment is nulled on the next edit.
+  directionId: r.directionId,
   period: r.period,
   fromDate: r.fromDate,
   toDate: r.toDate,
@@ -54,6 +58,7 @@ const toRow = (r: PassengerRoute): Row => ({
 
 const toInput = (r: Row): PassengerRouteInput => ({
   routeId: r.routeId ?? "",
+  directionId: r.directionId,
   period: r.period,
   fromDate: r.fromDate,
   toDate: r.toDate,

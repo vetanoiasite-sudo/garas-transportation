@@ -40,14 +40,19 @@ function toRepricing(r: RepricingRow): Repricing {
     createdBy: r.CreationName || "—",
     createdAt: dateOnly(r.CreationDate),
     approved: r.Approve === true,
-    approvedBy: r.ApprovedByName || undefined,
+    // ApprovedByName is projected from CreationByNavigation (the requester), so
+    // it is only meaningful once the request has actually been approved.
+    approvedBy: r.Approve === true ? r.ApprovedByName || undefined : undefined,
     // Backend getAll does not currently return StartDate; fall back to CreationDate.
     startDate: dateOnly(r.StartDate || r.CreationDate),
-    lines: (r.transportationLineDetails ?? []).map((l) => ({
-      lineName: l.RouteName ?? "",
-      before: Number(l.PriceBefore) || 0,
-      after: Number(l.PriceAfter) || 0,
-    })),
+    // For percentage requests the API puts the INCREASE in PriceAfter, not the
+    // resulting price (approval then applies before + increase) — so the new
+    // price is reconstructed here to match what approving will actually save.
+    lines: (r.transportationLineDetails ?? []).map((l) => {
+      const before = Number(l.PriceBefore) || 0;
+      const raw = Number(l.PriceAfter) || 0;
+      return { lineName: l.RouteName ?? "", before, after: r.IsPercent ? before + raw : raw };
+    }),
   };
 }
 
@@ -80,11 +85,15 @@ export async function createRepricing(payload: {
 }): Promise<string> {
   const res = await apiPost<unknown>("ModifyPriceOfTransportationLine", {
     IncreaseCost: payload.amount,
-    IsPercent: payload.mode === "percent",
+    // The write DTO spells it IsPrecent (frozen typo) while the read model
+    // returns IsPercent — sending IsPercent here silently saved "fixed amount".
+    IsPrecent: payload.mode === "percent",
     ForAllLines: payload.forAllLines,
     ApproximateToFiveFlag: payload.approximateToFive,
     TransportationLineIds: payload.lineIds.map((id) => Number(id)).filter((n) => Number.isFinite(n) && n > 0),
-    StartDate: payload.startDate || undefined,
+    // Non-nullable DateTime → omitting it binds 01/01/0001, which the
+    // datetime column rejects with a raw SQL error. Default to today.
+    StartDate: payload.startDate || new Date().toISOString().slice(0, 10),
   });
   return String((res as { Id?: string | number }).Id ?? "");
 }

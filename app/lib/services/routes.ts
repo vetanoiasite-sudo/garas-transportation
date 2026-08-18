@@ -5,7 +5,7 @@
    ActualUserAttedance, christianNum, Longtitud, FirstNane). */
 import type { RouteItem, Station, PassengerAssignment, Period } from "@/lib/types";
 import { apiGet, apiPost, type PaginationHeader } from "@/lib/api/client";
-import { base64ToBlob } from "@/lib/download";
+import { fileUrl } from "@/lib/download";
 
 export interface Paginated<T> {
   items: T[];
@@ -13,9 +13,9 @@ export interface Paginated<T> {
 }
 
 /** GET RoutesWithUsersExcel — every route with its passengers as an .xlsx Blob. */
-export async function downloadRoutesWithUsersExcel(): Promise<Blob> {
-  const res = await apiGet<string>("RoutesWithUsersExcel");
-  return base64ToBlob(res.Data ?? "");
+export async function downloadRoutesWithUsersExcel(): Promise<string> {
+  const res = await apiGet<string>("RoutesWithUsersExcell");
+  return fileUrl(res.Data);
 }
 
 const num = (v: unknown): number => {
@@ -113,7 +113,7 @@ export async function getRoutes(query: RouteQuery = {}): Promise<Paginated<Route
   const res = await apiGet<RouteRow[]>("getAllTransportationRoute", {
     PageNo: pageNo,
     NoOfItems: noOfItems,
-    pTransportionlineId: query.lineId,
+    TransportionlineId: query.lineId, // frozen typo header (was sent as pTransportionlineId → filter ignored)
     SupplierId: query.supplierId,
     serialBus: query.serial,
     // Percent-encode so Arabic survives the HTTP header hop (backend decodes it).
@@ -146,11 +146,31 @@ export interface RouteInput {
   fromTime?: string;
   toTime?: string;
   active?: boolean;
+  /** Only meaningful on update — see updateRoute. */
+  approved?: boolean;
+}
+
+/** "HH:mm" from a time input → a full ISO timestamp on today's date.
+ *  The API types the leg times as DateTime, so a bare "06:00" fails to bind. */
+function timeToIso(time?: string): string | undefined {
+  if (!time) return undefined;
+  const [h, m] = time.split(":").map(Number);
+  if (!Number.isFinite(h)) return undefined;
+  const d = new Date();
+  d.setHours(h, m || 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
 function routeBody(i: RouteInput): Record<string, unknown> {
+  // NOTE: Serial is NOT sent — the backend assigns the next one itself.
   return {
     TransportationLineId: optNum(i.lineId) ?? 0,
+    // No station picked → send the name instead and AddTransportationRoute
+    // creates a station of its own with that name (see TransportationLineService:
+    // "if (!string.IsNullOrEmpty(dto.TransportationLineName)) … Add(new TransportationLine …)").
+    // Sending neither is what the backend rejects with "add parameter".
+    TransportationLineName: optNum(i.lineId) ? undefined : i.name,
     TransportationVehicleId: optNum(i.vehicleId) ?? 0,
     SupplierId: optNum(i.supplierId),
     SupplierContactPersonId: optNum(i.contactPersonId),
@@ -159,8 +179,11 @@ function routeBody(i: RouteInput): Record<string, unknown> {
     NameOfRoute: i.name,
     LineCost: i.cost,
     OneWay: i.oneWay,
-    FromDate: i.fromTime,
-    ToDate: i.toTime,
+    // PeriodFrom is a non-nullable DateTime: omitting it binds to 01/01/0001,
+    // which SQL Server's datetime column rejects.
+    PeriodFrom: timeToIso(i.fromTime) ?? new Date().toISOString().slice(0, 19),
+    FromoDate: timeToIso(i.fromTime), // frozen typo key
+    ToDate: timeToIso(i.toTime),
     Active: i.active ?? true,
   };
 }
@@ -173,7 +196,25 @@ export async function addRoute(input: RouteInput): Promise<string> {
 
 /** POST UpdateTransportationRoute — edit a route (Id in the body). */
 export async function updateRoute(id: string, input: RouteInput): Promise<void> {
-  await apiPost("UpdateTransportationRoute", { Id: Number(id), ...routeBody(input) });
+  // Update assigns TransportationLineId straight across — it has no
+  // create-the-station-from-a-name path, so the name is not sent here.
+  const { TransportationLineName, ...body } = routeBody(input);
+  void TransportationLineName;
+  // UpdateTransportationRoute overwrites EVERY column from the body, including
+  // IsApproved — omitting it silently un-approves the route. getAllTransportationRoute
+  // doesn't return the flag, so read it from getAllRoutes and send it back unchanged.
+  const approved = input.approved ?? (await getRouteApproval(id));
+  await apiPost("UpdateTransportationRoute", { Id: Number(id), ...body, IsApproved: approved });
+}
+
+/** Current approval flag of a route — only getAllRoutes exposes it. */
+async function getRouteApproval(routeId: string): Promise<boolean> {
+  try {
+    const res = await apiGet<{ Id?: number; IsApproved?: boolean }[]>("getAllRoutes", { RouteId: routeId, PageNo: 1, NoOfItems: 1 });
+    return !!(res.Data ?? [])[0]?.IsApproved;
+  } catch {
+    return false; // same as the backend's own default for a new route
+  }
 }
 
 /** POST DeleteTransportationRoute — delete (Id header). */
@@ -181,7 +222,9 @@ export async function deleteRoute(id: string): Promise<void> {
   await apiPost("DeleteTransportationRoute", {}, { Id: id });
 }
 
-/** POST ApproveRoute — toggle active (Id + Approve headers). */
+/** POST ApproveRoute — despite the name this sets `Active`, NOT `IsApproved`
+ *  (see TransportationLineService.ApproveRoute: `oldRoute.Active = Approve`).
+ *  Real approval goes through UpdateTransportationRoute's IsApproved flag. */
 export async function approveRoute(id: string, approve = true): Promise<void> {
   await apiPost("ApproveRoute", {}, { Id: id, Approve: String(approve) });
 }

@@ -1,7 +1,11 @@
-/* Notifications service — approval notices for super admins (routes/lines/
-   vehicles created + repricing requested by the transportation/HR admins).
-   Real calls to /api/Transportation. */
-import { apiGet, apiPost } from "@/lib/api/client";
+/* Notifications service — approval notices (routes/lines/vehicles created +
+   repricing requested).
+
+   These live on the CoreApi's own /Notification controller, not under
+   /api/Transportation. The API has no unread-count or mark-all endpoints: a
+   notice is unread while `New` is true, and `EditNotifications` writes one row
+   back — so the count is derived and mark-all fans out over the unread rows. */
+import { apiRaw, type Envelope } from "@/lib/api/client";
 
 export interface NotificationItem {
   id: string;
@@ -13,42 +17,53 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+/** UserNotification — the CoreApi row (frozen PascalCase; `New` = unread). */
 interface NotificationRow {
-  Id: number;
-  Title: string;
-  Description: string;
-  EntityType: string;
-  EntityId: number;
-  IsRead: boolean;
-  CreatedAt: string;
+  ID?: number | string;
+  Title?: string;
+  Description?: string;
+  URL?: string;
+  NotificationProcessID?: number;
+  New?: boolean;
+  Date?: string;
+  FromUserID?: number;
+  ToUserID?: number;
 }
 
-/** GET GetNotifications — the caller's approval notices, newest first. */
+interface NotificationsResponse { UserNotificationsList?: NotificationRow[] }
+
+const toItem = (n: NotificationRow): NotificationItem => ({
+  id: String(n.ID ?? ""),
+  title: n.Title ?? "",
+  description: n.Description ?? "",
+  // The CoreApi has no entity-type column; the deep link rides in URL.
+  entityType: n.URL ?? "",
+  entityId: Number(n.NotificationProcessID ?? 0),
+  isRead: !n.New,
+  createdAt: n.Date ?? "",
+});
+
+/** GET /Notification/GetNotifications — the caller's notices, newest first. */
 export async function getNotifications(pageNo = 1, noOfItems = 50): Promise<NotificationItem[]> {
-  const res = await apiGet<NotificationRow[]>("GetNotifications", { PageNo: pageNo, NoOfItems: noOfItems });
-  return (res.Data ?? []).map((n) => ({
-    id: String(n.Id),
-    title: n.Title,
-    description: n.Description,
-    entityType: n.EntityType,
-    entityId: n.EntityId,
-    isRead: n.IsRead,
-    createdAt: n.CreatedAt,
-  }));
+  const res = (await apiRaw<unknown>("GET", "/Notification/GetNotifications", {
+    headers: { CurrentPage: pageNo, NumberOfItemsPerPage: noOfItems },
+  })) as Envelope<unknown> & NotificationsResponse;
+  return (res.UserNotificationsList ?? []).map(toItem);
 }
 
-/** GET GetUnreadNotificationsCount — badge count for the bell. */
+/** Unread badge count — derived, since the API exposes no count endpoint. */
 export async function getUnreadCount(): Promise<number> {
-  const res = await apiGet<number>("GetUnreadNotificationsCount");
-  return Number(res.Data ?? 0);
+  const items = await getNotifications(1, 200);
+  return items.filter((n) => !n.isRead).length;
 }
 
-/** POST MarkNotificationRead — mark a single notice read. */
+/** POST /Notification/EditNotifications — flip one notice to read (New: false). */
 export async function markRead(id: string): Promise<void> {
-  await apiPost("MarkNotificationRead", {}, { Id: id });
+  await apiRaw("POST", "/Notification/EditNotifications", { body: { ID: Number(id), New: false } });
 }
 
-/** POST MarkAllNotificationsRead — mark every notice read. */
+/** Mark every unread notice read — one EditNotifications call per row. */
 export async function markAllRead(): Promise<void> {
-  await apiPost("MarkAllNotificationsRead", {});
+  const unread = (await getNotifications(1, 200)).filter((n) => !n.isRead);
+  await Promise.all(unread.map((n) => markRead(n.id)));
 }

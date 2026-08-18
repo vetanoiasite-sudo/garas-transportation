@@ -1,0 +1,10 @@
+{
+  "name": "garas-employee-transportation-management-system",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix app run build",
+    "dev": "npm --prefix app run dev",
+    "preview": "npm --prefix app run preview"
+  }
+}

@@ -8,14 +8,27 @@
  * (getAllTransportationRoute). Maps the backend's frozen PascalCase envelope
  * keys → the app's types. */
 import type { Period, Passenger } from "@/lib/types";
-import { apiGet, apiPost, type PaginationHeader } from "@/lib/api/client";
+import { apiGet, apiPost, apiForm, apiRaw, type PaginationHeader } from "@/lib/api/client";
+import { fileUrl } from "@/lib/download";
 
 export interface PaginatedPassengers { items: Passenger[]; pagination: PaginationHeader }
 
+/* HrUserCardDto (list rows) / GetHrUserDto (profile).
+ *
+ * IMPORTANT — where the two identifiers actually live:
+ *   • The passenger ID (the fingerprint no.) is stored in **Email**. The
+ *     attendance lookup is literally `attendance.Serial == HrUser.Email`, and
+ *     the HrUser entity has NO IdentityNumber column at all.
+ *   • The "other identifier" (C / M) is **MaritalStatusId → MaritalStatus.Name**.
+ * The list DTO carries Email but not the marital status; the profile carries both. */
 interface HrUserRow {
   Id: number;
   Name?: string;
+  FirstName?: string;
+  MiddleName?: string;
+  LastName?: string;
   Mobile?: string;
+  Email?: string;
   IdentityNumber?: string;
   MaritalStatusId?: number | null;
   MaritalStatusName?: string;
@@ -28,8 +41,9 @@ interface HrUserRow {
 function toPassenger(u: HrUserRow): Passenger {
   return {
     id: String(u.Id),
-    name: u.Name ?? "",
-    identityNumber: u.IdentityNumber ?? "",
+    name: u.Name ?? [u.FirstName, u.MiddleName, u.LastName].filter(Boolean).join(" "),
+    // The ID lives in Email (see the note above) — IdentityNumber does not exist.
+    identityNumber: u.Email ?? "",
     mobile: u.Mobile ?? "",
     identifier: u.MaritalStatusName ?? "",
     maritalStatusId: u.MaritalStatusId != null ? String(u.MaritalStatusId) : undefined,
@@ -59,41 +73,52 @@ export interface PassengerInput {
   lat?: number;
   lng?: number;
   photo?: string; // data-URI or url stored in HrUser.imgPath
+  /** Round-tripped so an edit doesn't clear it (the API rejects a null Email). */
+  email?: string;
 }
 
-/** POST AddHrUser — create a passenger profile. Returns the new id (from the Id field). */
-export async function addPassenger(input: PassengerInput): Promise<string> {
-  const res = await apiPost<number>("AddHrUser", {
-    ...splitName(input.name),
+/** Build the CoreApi HrUserDto from the app's single-field form input.
+ *
+ *  Both CreateHrUser and EditHrEmployee hard-fail when `ARLastName` or `Email`
+ *  is null ("please, Enter a valid ArlastName"/"…Email"), and this screen
+ *  collects neither: the Arabic name parts mirror the Latin split, and the
+ *  passenger's national id doubles as the login-less e-mail placeholder (the
+ *  same column the attendance endpoints read as the fingerprint no.). */
+function hrUserDto(input: PassengerInput) {
+  const parts = splitName(input.name);
+  return {
+    ...parts,
+    ARFirstName: parts.FirstName,
+    ARMiddleName: parts.MiddleName,
+    ARLastName: parts.LastName || parts.FirstName,
+    // The passenger ID IS the Email column — that is what attendance matches on.
+    Email: input.identityNumber || input.email,
     Mobile: input.mobile,
-    IdentityNumber: input.identityNumber,
     MaritalStatusId: input.maritalStatusId ? Number(input.maritalStatusId) : undefined,
     Latitude: input.lat,
-    Longitude: input.lng,
-    ImgPath: input.photo,
+    Longtitud: input.lng, // frozen typo key — `Longitude` bound to nothing and nulled the column
     Active: input.active,
+  };
+}
+
+/** POST CreateHrUserWithAllRoutes — create a passenger (optionally with routes).
+ *  The endpoint is [FromForm], so the DTO rides as multipart form fields. */
+export async function addPassenger(input: PassengerInput): Promise<string> {
+  const res = await apiForm<number>("CreateHrUserWithAllRoutes", {
+    HrUserDto: hrUserDto(input),
+    Data: [],
   });
   return String(res.Id ?? res.Data ?? "");
 }
 
-/** POST UpdateHrUser — edit an existing passenger profile. */
+/** POST /HrUser/EditHrEmployee — edit an existing passenger profile ([FromForm]). */
 export async function updatePassenger(id: string, input: PassengerInput): Promise<void> {
-  await apiPost("UpdateHrUser", {
-    Id: Number(id),
-    ...splitName(input.name),
-    Mobile: input.mobile,
-    IdentityNumber: input.identityNumber,
-    MaritalStatusId: input.maritalStatusId ? Number(input.maritalStatusId) : undefined,
-    Latitude: input.lat,
-    Longitude: input.lng,
-    ImgPath: input.photo,
-    Active: input.active,
-  });
+  await apiForm("/HrUser/EditHrEmployee", { HrUserId: Number(id), ...hrUserDto(input) });
 }
 
-/** GET GetMaritalStatus — options for the "Other Identifier" dropdown. */
+/** GET /DDL/MaritalStatus — options for the "Other Identifier" dropdown. */
 export async function getMaritalStatusOptions(): Promise<RouteOption[]> {
-  const res = await apiGet<{ Id: number; Name: string }[]>("GetMaritalStatus");
+  const res = await apiRaw<{ Id: number; Name: string }[]>("GET", "/DDL/MaritalStatus");
   return (res.Data ?? []).map((m) => ({ value: String(m.Id), label: m.Name }));
 }
 
@@ -125,49 +150,86 @@ export function fileToBase64(file: File): Promise<string> {
 
 /** GET downloadExcelUsersList — export the current passengers as an .xlsx Blob
  *  (also serves as the fillable template for the add-upload below). */
-export async function downloadPassengersExport(): Promise<Blob> {
-  const res = await apiGet<string>("downloadExcelUsersList");
-  return base64ToBlob(res.Data ?? "", XLSX_MIME);
+export async function downloadPassengersExport(): Promise<string> {
+  const res = await apiGet<string>("downloadExcelUserWithRoutesTemplete");
+  return fileUrl(res.Data);
 }
 
-/** POST InsertUsersWithRoutesExcel — upload a file to ADD passengers; returns counts. */
-export async function uploadPassengersExcel(base64: string): Promise<{ created: number; assigned: number; errors: string[] }> {
-  const res = await apiPost<{ Created?: number; Assigned?: number; Errors?: string[] }>("InsertUsersWithRoutesExcel", { File: base64 });
-  return { created: res.Data?.Created ?? 0, assigned: res.Data?.Assigned ?? 0, errors: res.Data?.Errors ?? [] };
+/** POST InsertUsersWithRoutesExcel — [FromForm] IFormFile. Returns a URL to an
+ *  error-log .txt when some rows failed, or nothing when all of them imported. */
+export async function uploadPassengersExcel(file: File): Promise<{ errorLogUrl?: string }> {
+  const res = await apiForm<string>("InsertUsersWithRoutesExcel", { file });
+  return { errorLogUrl: res.Data ? fileUrl(res.Data) : undefined };
 }
 
 /* ---- ACTIVATION workflow (Passengers list) ---- */
 
 /** GET downloadExcelUserActiveTemplete — the activation template (ID + نشط) as a Blob. */
-export async function downloadActivationTemplate(): Promise<Blob> {
+export async function downloadActivationTemplate(): Promise<string> {
   const res = await apiGet<string>("downloadExcelUserActiveTemplete");
-  return base64ToBlob(res.Data ?? "", XLSX_MIME);
+  return fileUrl(res.Data);
 }
 
-/** POST InsertUserNotActiveExcel — upload to activate/deactivate EXISTING passengers
- *  (matched by ID); returns how many were updated and any unmatched ids. */
-export async function uploadActivationExcel(base64: string): Promise<{ updated: number; notFound: string[]; errors: string[] }> {
-  const res = await apiPost<{ Updated?: number; NotFound?: string[]; Errors?: string[] }>("InsertUserNotActiveExcel", { File: base64 });
-  return { updated: res.Data?.Updated ?? 0, notFound: res.Data?.NotFound ?? [], errors: res.Data?.Errors ?? [] };
+/** POST InsertUserNotActiveExcel — [FromForm] IFormFile.
+ *
+ *  ⚠ The controller action for this route calls InsertUsersWithRoutesExcel (the
+ *  CREATE importer), not InsertUserNotActiveExcel — uploading here would create
+ *  passengers instead of activating them. Left wired but the screen must keep
+ *  the button hidden until the backend routes it correctly. */
+export async function uploadActivationExcel(file: File): Promise<{ errorLogUrl?: string }> {
+  const res = await apiForm<string>("InsertUserNotActiveExcel", { file });
+  return { errorLogUrl: res.Data ? fileUrl(res.Data) : undefined };
 }
 
 /** GET getAllHrUsers — paginated passenger profiles. `active` filters by status
  *  ("true"/"false"); omit to get ALL (active + inactive). */
-export async function getPassengers(pageNo = 1, noOfItems = 100, name?: string, active?: boolean): Promise<PaginatedPassengers> {
-  const res = await apiGet<HrUserRow[]>("getAllHrUsers", {
-    PageNo: pageNo,
-    NoOfItems: noOfItems,
+/** Scope filters handed off from the dashboard (all optional, additive backend headers). */
+export interface PassengerScopeFilters {
+  supplierId?: string;
+  routeId?: string;
+  serial?: string;
+  driverId?: string;
+}
+
+/** GET /HrUser/GetUserCards — the passenger list.
+ *
+ *  NOT `getAllUsers`: that one starts from TransportationVehicleRouteEmployees
+ *  and only returns passengers who already sit on an ACTIVE route, so a newly
+ *  created passenger never showed up. GetUserCards lists HrUsers themselves and
+ *  still accepts the same transportation scope filters.
+ *
+ *  The row is an HrUserCardDto: the name comes back split, and the profile-only
+ *  fields (identity no., marital status, home point) aren't on the card — the
+ *  profile screen fetches those per passenger. */
+export async function getPassengers(pageNo = 1, noOfItems = 100, name?: string, active?: boolean, scope: PassengerScopeFilters = {}): Promise<PaginatedPassengers> {
+  const res = await apiRaw<HrUserRow[]>("GET", "/HrUser/GetUserCards", { headers: {
+    currentPage: pageNo,
+    numberOfItemsPerPage: noOfItems,
+    isDeleted: "false",
+    active: active === undefined ? undefined : String(active),
     // Percent-encode so Arabic survives the HTTP header hop (backend decodes it).
-    Name: name ? encodeURIComponent(name) : undefined,
-    Active: active === undefined ? undefined : String(active),
-  });
+    userName: name ? encodeURIComponent(name) : undefined,
+    // The backend resolves the scope with a chain of early returns
+    // (route → supplier → driver → serial): only the FIRST non-zero filter is
+    // applied. Sending several would advertise a combined filter that never
+    // happens, so only the most specific one goes out.
+    ...(scope.routeId
+      ? { RouteId: scope.routeId }
+      : scope.supplierId
+        ? { SupplierId: scope.supplierId }
+        : scope.driverId
+          ? { supplierContactPersonId: scope.driverId }
+          : scope.serial
+            ? { serialBus: scope.serial }
+            : {}),
+  } });
   const items = (res.Data ?? []).map(toPassenger);
   return { items, pagination: res.PaginationHeader ?? { CurrentPage: pageNo, ItemsPerPage: noOfItems, TotalItems: items.length, TotalPages: 1 } };
 }
 
-/** GET getHrUser — a single passenger profile (Id header). */
+/** GET /HrUser/GetHrUser — a single passenger profile (HrUserId header). */
 export async function getPassenger(id: string): Promise<Passenger | undefined> {
-  const res = await apiGet<HrUserRow | null>("getHrUser", { Id: id });
+  const res = await apiRaw<HrUserRow | null>("GET", "/HrUser/GetHrUser", { headers: { HrUserId: id, systemUserId: 0 } });
   return res.Data ? toPassenger(res.Data) : undefined;
 }
 

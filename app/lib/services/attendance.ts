@@ -10,7 +10,7 @@
    anyway; the UI populates once those figures are filled in. */
 import type { AttendanceRecord } from "@/lib/types";
 import { apiGet, apiPost, type PaginationHeader } from "@/lib/api/client";
-import { base64ToBlob } from "@/lib/download";
+import { fileUrl } from "@/lib/download";
 
 export interface Paginated<T> {
   items: T[];
@@ -20,6 +20,14 @@ export interface Paginated<T> {
 const num = (v: unknown): number => {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
+};
+
+// The API returns raw doubles for the percentages (69.39769707705935) — printing
+// them verbatim overflows the KPI tiles and the columns run into each other.
+const pct = (v: unknown): string => {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return "0";
+  return String(Math.round(x * 10) / 10);
 };
 
 /* ---- Dashboard numbers (DashBoard) ---- */
@@ -43,6 +51,17 @@ interface DashboardData {
   AllHrUsersNum?: string;
   AllSuppliersNum?: string;
   VehiclesTypeNum?: string;
+  // The old-dashboard parity cards. These DO exist on DashBoardVM, just under
+  // different names than the ones the cards were first written against:
+  //   capacity            → Capacity            (not FullCapacity)
+  //   users % of capacity → HrUsersOfCapacityPercent
+  //   users return leg    → HrUsersAttendanceNumCheckOut
+  //   one-way return leg  → OneWayVehicleAttendanceNumCheckOut / …PercentCheckOut
+  Capacity?: string;
+  HrUsersOfCapacityPercent?: string;
+  HrUsersAttendanceNumCheckOut?: string;
+  OneWayVehicleAttendanceNumCheckOut?: string;
+  OneWayVehiclePercentCheckOut?: string;
 }
 
 export interface DashboardNumbers {
@@ -64,6 +83,12 @@ export interface DashboardNumbers {
   oneWayVehiclePercent: string;
   employeesAttendanceNum: number;
   employeesPercent: string;
+  fullCapacity: number;
+  employeesGoNum: number;
+  employeesReturnNum: number;
+  capacityPercent: string;
+  oneWayGoPercent: string;
+  oneWayReturnPercent: string;
 }
 
 export interface DashboardQuery {
@@ -97,11 +122,19 @@ export async function getDashboardNumbers(query: DashboardQuery): Promise<Dashbo
     checkInVehicleNum: num(d.CheckInVehicleAttendanceNum),
     checkOutVehicleNum: num(d.CheckOutVehicleAttendanceNum),
     oneWayVehicleNum: num(d.OneWayVehicleAttendanceNum),
-    checkInVehiclePercent: d.CheckInVehiclePercent ?? "0",
-    checkOutVehiclePercent: d.CheckOutVehiclePercent ?? "0",
-    oneWayVehiclePercent: d.OneWayVehiclePercent ?? "0",
+    checkInVehiclePercent: pct(d.CheckInVehiclePercent),
+    checkOutVehiclePercent: pct(d.CheckOutVehiclePercent),
+    oneWayVehiclePercent: pct(d.OneWayVehiclePercent),
     employeesAttendanceNum: num(d.HrUsersAttendanceNum),
-    employeesPercent: d.HrUsersPercent ?? "0",
+    employeesPercent: pct(d.HrUsersPercent),
+    fullCapacity: num(d.Capacity),
+    // HrUsersAttendanceNum is the outbound (check-in) leg; the return leg has
+    // its own CheckOut-suffixed field.
+    employeesGoNum: num(d.HrUsersAttendanceNum),
+    employeesReturnNum: num(d.HrUsersAttendanceNumCheckOut),
+    capacityPercent: pct(d.HrUsersOfCapacityPercent),
+    oneWayGoPercent: pct(d.OneWayVehiclePercent),
+    oneWayReturnPercent: pct(d.OneWayVehiclePercentCheckOut),
   };
 }
 
@@ -118,6 +151,7 @@ interface AttendanceHistoryRow {
 interface AttendanceRow {
   Id?: string | number;
   EmployeeId?: string; // passenger/employee id (fingerprint no.)
+  IdentityNumber?: string; // national id (additive key)
   FirstName?: string;
   MiddleName?: string;
   LastName?: string;
@@ -146,7 +180,9 @@ function toAttendance(r: AttendanceRow, index: number): AttendanceRecord {
     // React keys unique without changing the frozen API contract.
     id: `${r.Id != null ? String(r.Id) : "row"}-${index}`,
     name,
-    idCode: r.EmployeeId ?? "", // passenger/employee id (backend key: EmployeeId)
+    // Fingerprint no. when set, else the national id — so the ID column is
+    // never blank for passengers that have no fingerprint code yet.
+    idCode: r.EmployeeId || r.IdentityNumber || "",
     otherId: r.MaritalStatus ?? "", // the "other identifier" (C/M) from the backend
     line: r.TransportionlineName ?? "",
     route: r.NameOfRoute ?? "",
@@ -168,6 +204,7 @@ export interface AttendanceQuery {
   supplierId?: string;
   serial?: string;
   routeId?: string;
+  driverId?: string;
   employeeId?: string; // passenger/employee id (fingerprint no.)
   attended?: boolean;
   absent?: boolean;
@@ -187,9 +224,10 @@ export async function getAttendance(query: AttendanceQuery = {}): Promise<Pagina
     ToDate: query.to,
     TransportionlineId: query.lineId, // frozen typo header
     SupplierId: query.supplierId,
+    supplierContactPersonId: query.driverId,
     serialBus: query.serial,
     RouteId: query.routeId,
-    EmployeeId: query.employeeId, // passenger/employee id filter (fingerprint no.)
+    HrUser: query.employeeId, // the backend filters on HrUser (an HrUser id), not EmployeeId
     AttendaceFlag: flag, // frozen typo header
     PageNo: pageNo,
     NoOfItems: noOfItems,
@@ -222,16 +260,137 @@ export async function recordAttendance(payload: {
   });
 }
 
+/* ---- Bus attendance (BusAttendance) ---- */
+
+/* The backend groups by route and returns ONE ROW PER DAY inside each group;
+   CheckIn/CheckOut are booleans (did the bus run that leg), not timestamps:
+
+     Data: [ { RouteName, Attendance: [ { LineName, RouteName, Serial, Date,
+                                          CheckIn, CheckOut, OneWay,
+                                          CheckInUsersCount, … } ] } ]
+
+   The screen wants one row per BUS with a per-day history, so the group is
+   flattened here. Supplier/driver are not part of this response. */
+interface BusAttendanceDayRow {
+  LineName?: string;
+  RouteName?: string;
+  Serial?: string;
+  Date?: string;
+  CheckIn?: boolean;
+  CheckOut?: boolean;
+  OneWay?: boolean;
+  CheckInUsersCount?: number | null;
+  CheckOutUsersCount?: number | null;
+  OneWayUsersCount?: number | null;
+}
+interface BusAttendanceGroup {
+  RouteName?: string;
+  Attendance?: BusAttendanceDayRow[];
+}
+
+export interface BusAttendanceDay {
+  date: string;
+  /** The bus ran the outbound leg that day. */
+  checkIn: boolean;
+  /** The bus ran the return leg that day. */
+  checkOut: boolean;
+  riddenIn: number;
+  riddenOut: number;
+  attended: boolean;
+}
+
+export interface BusAttendanceRecord {
+  id: string;
+  line: string;
+  route: string;
+  serial: string;
+  attended: boolean;
+  /** Days the bus ran at least one leg, within the filtered range. */
+  daysAttended: number;
+  history: BusAttendanceDay[];
+}
+
+function toBusAttendance(g: BusAttendanceGroup, index: number): BusAttendanceRecord {
+  const rows = g.Attendance ?? [];
+  const history: BusAttendanceDay[] = rows.map((d) => ({
+    date: d.Date ?? "",
+    checkIn: !!d.CheckIn,
+    checkOut: !!d.CheckOut,
+    riddenIn: d.CheckInUsersCount ?? 0,
+    riddenOut: d.CheckOutUsersCount ?? 0,
+    attended: !!(d.CheckIn || d.CheckOut || d.OneWay),
+  }));
+  const first = rows[0];
+  return {
+    // The response carries no route id — the group position keeps React keys stable.
+    id: `${first?.Serial || g.RouteName || "bus"}-${index}`,
+    line: first?.LineName ?? "",
+    route: g.RouteName ?? first?.RouteName ?? "",
+    serial: first?.Serial ?? "",
+    attended: history.some((h) => h.attended),
+    daysAttended: history.filter((h) => h.attended).length,
+    history,
+  };
+}
+
+export interface BusAttendanceQuery {
+  from?: string;
+  to?: string;
+  lineId?: string;
+  supplierId?: string;
+  driverId?: string;
+  serial?: string;
+  routeId?: string;
+  name?: string;
+  pageNo?: number;
+  noOfItems?: number;
+}
+
+const busAttendanceHeaders = (query: BusAttendanceQuery) => ({
+  FromDate: query.from,
+  ToDate: query.to,
+  TransportionlineId: query.lineId, // frozen typo header
+  SupplierId: query.supplierId,
+  supplierContactPersonId: query.driverId,
+  serialBus: query.serial,
+  RouteId: query.routeId,
+  // Percent-encode so Arabic survives the HTTP header hop (backend decodes it).
+  Name: query.name ? encodeURIComponent(query.name) : undefined,
+});
+
+/** GET BusAttendance — paginated per-route BUS attendance rows. */
+export async function getBusAttendance(query: BusAttendanceQuery = {}): Promise<Paginated<BusAttendanceRecord>> {
+  const pageNo = query.pageNo ?? 1;
+  const noOfItems = query.noOfItems ?? 100;
+  const res = await apiGet<BusAttendanceGroup[]>("BusAttendance", {
+    ...busAttendanceHeaders(query),
+    PageNo: pageNo,
+    NoOfItems: noOfItems,
+  });
+  const items = (res.Data ?? []).map(toBusAttendance);
+  return {
+    items,
+    pagination: res.PaginationHeader ?? { CurrentPage: pageNo, ItemsPerPage: noOfItems, TotalItems: items.length, TotalPages: 1 },
+  };
+}
+
+/** GET BusAttendanceExcel — returns a URL to the generated file, not base64. */
+export async function downloadBusAttendanceExcel(query: BusAttendanceQuery = {}): Promise<string> {
+  const res = await apiGet<string>("BusAttendanceExcel", busAttendanceHeaders(query));
+  return fileUrl(res.Data);
+}
+
 /** GET AttendanceExcell — the filtered attendance roster as an .xlsx Blob. */
-export async function downloadAttendanceExcel(query: AttendanceQuery = {}): Promise<Blob> {
+export async function downloadAttendanceExcel(query: AttendanceQuery = {}): Promise<string> {
   const res = await apiGet<string>("AttendanceExcell", {
     FromDate: query.from,
     ToDate: query.to,
     TransportionlineId: query.lineId, // frozen typo header
     SupplierId: query.supplierId,
+    supplierContactPersonId: query.driverId,
     serialBus: query.serial,
     RouteId: query.routeId,
-    EmployeeId: query.employeeId, // passenger/employee id filter (fingerprint no.)
+    HrUser: query.employeeId, // the backend filters on HrUser (an HrUser id), not EmployeeId
   });
-  return base64ToBlob(res.Data ?? "");
+  return fileUrl(res.Data);
 }

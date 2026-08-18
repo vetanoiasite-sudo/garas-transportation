@@ -40,19 +40,19 @@ export type Permission =
   | "manage.users" // create/edit login users & assign their transportation role
   | "view.financialReports"; // supplier account statement + line cost report (super admin only)
 
+// Super admin's full permission set. The transportation admin (مسئول مواصلات)
+// shares it EXACTLY (business decision 2026-08-18): both form the approval
+// group and both receive approval notifications.
+const SUPER_PERMS: Permission[] = [
+  "crud.entities", "approve.line", "manage.vehicles", "approve.vehicle",
+  "add.payment", "create.repricing", "approve.repricing", "reject.repricing",
+  "create.supplier", "print.invoice", "manage.passengers", "touch.attendance",
+  "manage.exceptions", "manage.users", "view.financialReports",
+];
+
 const matrix: Record<Role, Permission[]> = {
-  super_admin: [
-    "crud.entities", "approve.line", "manage.vehicles", "approve.vehicle",
-    "add.payment", "create.repricing", "approve.repricing", "reject.repricing",
-    "create.supplier", "print.invoice", "manage.passengers", "touch.attendance",
-    "manage.exceptions", "manage.users", "view.financialReports",
-  ],
-  // Transportation operations + the money side (statements/deductions/repricing/
-  // payments), but no approvals, no user management, no passengers/attendance.
-  transportation_admin: [
-    "crud.entities", "manage.vehicles", "add.payment", "create.repricing",
-    "create.supplier", "print.invoice",
-  ],
+  super_admin: SUPER_PERMS,
+  transportation_admin: SUPER_PERMS,
   // Employees + their route assignment + attendance + exceptions.
   hr_admin: ["manage.passengers", "touch.attendance", "manage.exceptions"],
   reader: [],

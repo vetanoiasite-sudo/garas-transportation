@@ -1,0 +1,6 @@
+@NewGarasAPI_HostAddress = http://localhost:5281
+
+GET {{NewGarasAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

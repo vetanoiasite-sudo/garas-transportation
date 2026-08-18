@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!--<Nullable>enable</Nullable>-->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Nullable>disable</Nullable>
+    <!-- Only the .NET 9/10 runtimes are installed on this machine; net8.0 assemblies
+         run on them with roll-forward. Remove if a .NET 8 runtime is installed. -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="ShowImage.ashx.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="ShowImage.ashx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.0.1" />
+    <PackageReference Include="EPPlus" Version="7.1.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Quartz" Version="3.18.0" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.18.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\Attachments\garastest\HrUser\10024\" />
+    <Folder Include="wwwroot\Attachments\garastest\TaskManger\" />
+    <Folder Include="wwwroot\Attachments\garastest\TaskManger\10082\" />
+    <Folder Include="wwwroot\Attachments\marinaplt\Maintenance\ManagementMaintenanceOrder_20035\" />
+    <Folder Include="wwwroot\Attachments\MessageReportExcel\" />
+    <Folder Include="wwwroot\Attachments\periti\Email\" />
+    <Folder Include="wwwroot\Attachments\PharmaTemplate\RoutesTemplate\" />
+    <Folder Include="wwwroot\Attachments\PharmaTemplate\UserRoutes\" />
+    <Folder Include="wwwroot\Attachments\PharmaTemplate\resultTampletes\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NewGaras.Domain\NewGaras.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

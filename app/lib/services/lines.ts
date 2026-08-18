@@ -3,11 +3,13 @@
 import type { Line } from "@/lib/types";
 import { apiGet, apiPost, type PaginationHeader } from "@/lib/api/client";
 
+/** transportionLineNameVn — all getAllTransportationLine returns. A station has
+ *  NO approval concept: the TransportationLine entity has no IsApproved column
+ *  and no endpoint sets one, so `approved` is always true here. */
 interface LineRow {
   Id: number;
   Name: string;
   RouteNum: number;
-  IsApproved: boolean;
 }
 
 export interface Paginated<T> {
@@ -16,7 +18,7 @@ export interface Paginated<T> {
 }
 
 function toLine(l: LineRow): Line {
-  return { id: String(l.Id), name: l.Name, routesCount: l.RouteNum ?? 0, approved: !!l.IsApproved };
+  return { id: String(l.Id), name: l.Name, routesCount: l.RouteNum ?? 0, approved: true };
 }
 
 /** GET getAllTransportationLine — paginated lines with an optional server-side name search. */
@@ -50,7 +52,6 @@ export async function deleteLine(id: string): Promise<void> {
   await apiPost("DeleteTransportationLine", {}, { Id: id });
 }
 
-/** POST ApproveTransportationLine (Id + Approve headers). */
-export async function approveLine(id: string, approve = true): Promise<void> {
-  await apiPost("ApproveTransportationLine", {}, { Id: id, Approve: String(approve) });
-}
+/* NOTE: there is no approve-a-station endpoint — TransportationLine has no
+   IsApproved column. Approval exists only for ROUTES (UpdateTransportationRoute
+   with IsApproved) and VEHICLES (ApproveTransportationVehicle). */

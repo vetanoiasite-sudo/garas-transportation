@@ -33,6 +33,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
   const main: NavLink[] = [
     { href: "/dashboard", labelKey: "nav.dashboard", icon: IconDashboard },
     { href: "/attendance", labelKey: "nav.attendance", icon: IconTrend },
+    { href: "/bus-attendance", labelKey: "busAtt.title", icon: IconBus },
     { href: "/lines", labelKey: "nav.lines", icon: IconBus },
     { href: "/routes", labelKey: "nav.routes", icon: IconRoute },
     { href: "/vehicles", labelKey: "nav.vehicles", icon: IconTruck },

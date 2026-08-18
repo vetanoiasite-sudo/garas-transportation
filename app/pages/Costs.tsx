@@ -6,8 +6,9 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { useToast } from "@/contexts/ToastContext";
 import type { CostReportRow } from "@/lib/types";
 import { getCostReport, downloadCostReportExcel } from "@/lib/services/costs";
-import { saveBlob } from "@/lib/download";
+import { openFileUrl } from "@/lib/download";
 import { apiGet } from "@/lib/api/client";
+import { useSupplierOptions, useDriverOptions } from "@/lib/hooks/useSuppliers";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import Combobox from "@/components/ui/Combobox";
@@ -15,11 +16,11 @@ import { Field, Input } from "@/components/ui/Field";
 import { IconDownload, IconChevronEnd } from "@/components/ui/Icons";
 
 const money = (n: number) => n.toLocaleString("ar-EG") + " ج.م";
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 // Backend dropdown row shapes (frozen PascalCase keys).
 interface LineRow { Id: number; Name: string }
-interface SupplierRow { Id: number; Name: string; contacts?: { Id: number; Name: string }[] }
 interface RouteRow { Id: number; NameOfRoute: string; Serial?: string }
 
 // Line Cost Report (ReportCostOfLines). Reached from the dashboard "Line Cost
@@ -33,7 +34,6 @@ export default function LineCostReportPage() {
   const [loading, setLoading] = useState(true);
 
   const [lineOpts, setLineOpts] = useState<LineRow[]>([]);
-  const [supplierOpts, setSupplierOpts] = useState<SupplierRow[]>([]);
   const [routeOpts, setRouteOpts] = useState<RouteRow[]>([]);
 
   const [line, setLine] = useState<string | undefined>();
@@ -41,25 +41,23 @@ export default function LineCostReportPage() {
   const [driver, setDriver] = useState<string | undefined>();
   const [route, setRoute] = useState<string | undefined>();
   const [serial, setSerial] = useState("");
-  const [from, setFrom] = useState("2026-07-01");
-  const [to, setTo] = useState("2026-07-31");
+  // Current month by default (the report only counts rounds when both ends are set).
+  const [from, setFrom] = useState(() => { const d = new Date(); return isoDay(new Date(d.getFullYear(), d.getMonth(), 1)); });
+  const [to, setTo] = useState(() => { const d = new Date(); return isoDay(new Date(d.getFullYear(), d.getMonth() + 1, 0)); });
 
-  const driverOptions = useMemo(() => {
-    const s = supplierOpts.find((x) => String(x.Id) === supplier);
-    return (s?.contacts ?? []).map((c) => ({ value: String(c.Id), label: c.Name }));
-  }, [supplier, supplierOpts]);
+  const onLoadError = useCallback((e: unknown) => toast(errMsg(e, t("empty.generic")), "error"), [toast, t]);
+  const supplierOpts = useSupplierOptions(onLoadError);
+  const driverOptions = useDriverOptions(supplier, onLoadError);
 
   // Load the filter dropdowns once.
   useEffect(() => {
     (async () => {
       try {
-        const [ls, ss, rs] = await Promise.all([
+        const [ls, rs] = await Promise.all([
           apiGet<LineRow[]>("getAllTransportationLine", { PageNo: 1, NoOfItems: 500 }),
-          apiGet<SupplierRow[]>("getSuppliers", { PageNo: 1, NoOfItems: 500 }),
           apiGet<RouteRow[]>("getAllTransportationRoute", { PageNo: 1, NoOfItems: 500 }),
         ]);
         setLineOpts(ls.Data ?? []);
-        setSupplierOpts(ss.Data ?? []);
         setRouteOpts(rs.Data ?? []);
       } catch (e) {
         toast(errMsg(e, t("empty.generic")), "error");
@@ -75,7 +73,7 @@ export default function LineCostReportPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getCostReport({ lineId: line, supplierId: supplier, serial: effectiveSerial, from, to });
+      const res = await getCostReport({ driverId: driver, lineId: line, supplierId: supplier, serial: effectiveSerial, from, to });
       setRows(res.items);
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
@@ -90,8 +88,8 @@ export default function LineCostReportPage() {
   const onDownloadExcel = useCallback(async () => {
     setDownloading(true);
     try {
-      const blob = await downloadCostReportExcel({ lineId: line, supplierId: supplier, serial: effectiveSerial, from, to });
-      saveBlob(blob, "line-cost-report.xlsx");
+      const url = await downloadCostReportExcel({ driverId: driver, lineId: line, supplierId: supplier, serial: effectiveSerial, from, to });
+      openFileUrl(url, "line-cost-report.xlsx");
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
     } finally {

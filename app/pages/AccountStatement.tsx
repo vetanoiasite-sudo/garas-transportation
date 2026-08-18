@@ -10,7 +10,7 @@ import type { StatementRow, SupplierPayment, Supplier, RouteItem } from "@/lib/t
 import { getMonthlyStatement, getPayments, addPayment, getSuppliers, downloadStatementExcel, getSupplierRounds, type SupplierRound } from "@/lib/services/suppliers";
 import { getRoutes } from "@/lib/services/routes";
 import { addDeduction } from "@/lib/services/deductions";
-import { saveBlob } from "@/lib/download";
+import { openFileUrl } from "@/lib/download";
 import { formatDate } from "@/lib/datetime";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
@@ -69,8 +69,8 @@ export default function StatementPage() {
   const onDownloadExcel = useCallback(async () => {
     setDownloading(true);
     try {
-      const blob = await downloadStatementExcel({ supplierId: supplier, routeId: route, month, year });
-      saveBlob(blob, "supplier-statement.xlsx");
+      const url = await downloadStatementExcel({ supplierId: supplier, routeId: route, month, year });
+      openFileUrl(url, "supplier-statement.xlsx");
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
     } finally {

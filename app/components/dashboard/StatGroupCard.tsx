@@ -16,12 +16,14 @@ export default function StatGroupCard({
   title,
   stats,
   href,
+  onClick,
   tone = "brand",
 }: {
   icon: React.ReactNode;
   title: string;
   stats: Stat[];
   href?: string;
+  onClick?: () => void;
   tone?: "brand" | "green" | "amber" | "red";
 }) {
   const iconStyle: React.CSSProperties =
@@ -40,7 +42,7 @@ export default function StatGroupCard({
     <>
       <div className="kpi-top">
         <span className="kpi-icon" style={iconStyle}>{icon}</span>
-        {href && <span className="kpi-go" aria-hidden><IconChevronEnd /></span>}
+        {(href || onClick) && <span className="kpi-go" aria-hidden><IconChevronEnd /></span>}
       </div>
       <div className="kpi-label" style={{ fontWeight: 600, color: "var(--text-heading)" }}>{title}</div>
       <div className="kpi-stats">
@@ -58,5 +60,23 @@ export default function StatGroupCard({
   );
 
   if (href) return <Link to={href} className="kpi">{inner}</Link>;
+  if (onClick)
+    return (
+      <div
+        className="kpi"
+        role="button"
+        tabIndex={0}
+        style={{ cursor: "pointer" }}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+      >
+        {inner}
+      </div>
+    );
   return <div className="kpi">{inner}</div>;
 }

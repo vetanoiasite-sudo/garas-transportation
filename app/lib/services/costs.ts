@@ -6,7 +6,7 @@
    table and the .xlsx export populate once those figures are filled in. */
 import type { CostReportRow } from "@/lib/types";
 import { apiGet, type PaginationHeader } from "@/lib/api/client";
-import { base64ToBlob } from "@/lib/download";
+import { fileUrl } from "@/lib/download";
 
 export interface Paginated<T> {
   items: T[];
@@ -47,7 +47,9 @@ function toCostRow(r: CostRow, i: number): CostReportRow {
     oneWay: !!r.OneWay,
     rounds: num(r.CountOfround),
     deductionRounds,
-    deductionCost: deductPerRound * deductionRounds,
+    // DeductPerRound is already Sum(DeductPerRound) server-side — NOT a unit
+    // rate, and NetCost subtracts it once. Multiplying inflated it by the row count.
+    deductionCost: deductPerRound,
     netCost: num(r.NetCost),
   };
 }
@@ -56,6 +58,7 @@ export interface CostQuery {
   pageNo?: number;
   noOfItems?: number;
   supplierId?: string;
+  driverId?: string;
   lineId?: string;
   serial?: string;
   from?: string;
@@ -70,6 +73,7 @@ export async function getCostReport(query: CostQuery = {}): Promise<Paginated<Co
     PageNo: pageNo,
     NoOfItems: noOfItems,
     SupplierId: query.supplierId,
+    supplierContactPersonId: query.driverId,
     TransportionlineId: query.lineId, // frozen typo header
     serialBus: query.serial,
     DateFrom: query.from,
@@ -83,13 +87,14 @@ export async function getCostReport(query: CostQuery = {}): Promise<Paginated<Co
 }
 
 /** GET ReportCostOfLinesExcell — the filtered line-cost report as an .xlsx Blob. */
-export async function downloadCostReportExcel(query: CostQuery = {}): Promise<Blob> {
+export async function downloadCostReportExcel(query: CostQuery = {}): Promise<string> {
   const res = await apiGet<string>("ReportCostOfLinesExcell", {
     SupplierId: query.supplierId,
+    supplierContactPersonId: query.driverId,
     TransportionlineId: query.lineId, // frozen typo header
     serialBus: query.serial,
     DateFrom: query.from,
     DateTo: query.to,
   });
-  return base64ToBlob(res.Data ?? "");
+  return fileUrl(res.Data);
 }

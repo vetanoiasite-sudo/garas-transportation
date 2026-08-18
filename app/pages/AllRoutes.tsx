@@ -8,7 +8,8 @@ import { useToast } from "@/contexts/ToastContext";
 import { canAdd } from "@/lib/types";
 import { apiGet, type PaginationHeader } from "@/lib/api/client";
 import { getRoutes, getRouteUsers, downloadRoutesWithUsersExcel } from "@/lib/services/routes";
-import { saveBlob } from "@/lib/download";
+import { getSuppliers } from "@/lib/services/suppliers";
+import { openFileUrl } from "@/lib/download";
 import { formatTime } from "@/lib/datetime";
 import type { RouteItem, PassengerAssignment, Period } from "@/lib/types";
 import PageHeader from "@/components/ui/PageHeader";
@@ -53,8 +54,8 @@ export default function AllRoutesPage() {
   const onDownloadExcel = useCallback(async () => {
     setDownloading(true);
     try {
-      const blob = await downloadRoutesWithUsersExcel();
-      saveBlob(blob, "routes-with-passengers.xlsx");
+      const url = await downloadRoutesWithUsersExcel();
+      openFileUrl(url, "routes-with-passengers.xlsx");
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
     } finally {
@@ -92,13 +93,13 @@ export default function AllRoutesPage() {
     let alive = true;
     (async () => {
       try {
-        const [linesRes, suppliersRes] = await Promise.all([
+        const [linesRes, suppliers] = await Promise.all([
           apiGet<LineRow[]>("getAllTransportationLine", { PageNo: 1, NoOfItems: 200 }),
-          apiGet<SupplierRow[]>("getSuppliers", { PageNo: 1, NoOfItems: 200 }),
+          getSuppliers({ pageNo: 1, noOfItems: 500 }),
         ]);
         if (!alive) return;
         setLineOptions((linesRes.Data ?? []).map((l) => ({ value: String(l.Id), label: l.Name })));
-        setSupplierOptions((suppliersRes.Data ?? []).map((s) => ({ value: String(s.Id), label: s.Name })));
+        setSupplierOptions(suppliers.items.map((s) => ({ value: s.id, label: s.name })));
       } catch {
         /* filter dropdowns are best-effort; the list still loads */
       }

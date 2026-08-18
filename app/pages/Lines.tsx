@@ -6,7 +6,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { can, canAdd, type Line } from "@/lib/types";
-import { getLines, addLine, updateLine, deleteLine, approveLine } from "@/lib/services/lines";
+import { getLines, addLine, updateLine, deleteLine } from "@/lib/services/lines";
 import PageHeader from "@/components/ui/PageHeader";
 import Dialog from "@/components/ui/Dialog";
 import { Field, Input } from "@/components/ui/Field";
@@ -30,7 +30,6 @@ export default function LinesPage() {
   const [nameFilter, setNameFilter] = useState("");
 
   const canManage = can(user?.role, "crud.entities");
-  const canApprove = can(user?.role, "approve.line");
   const p = (path: string) => `/${locale}${path}`;
 
   // Debounce the name search (server-side filter on getAllTransportationLine).
@@ -63,17 +62,6 @@ export default function LinesPage() {
     try {
       if (editing === "new") { await addLine(name); toast(t("line.added")); }
       else if (editing) { await updateLine(editing.id, name); toast(t("line.updated")); }
-      setEditing(null);
-      await load();
-    } catch (e) {
-      toast(errMsg(e, t("empty.generic")), "error");
-    }
-  };
-
-  const approve = async (l: Line) => {
-    try {
-      await approveLine(l.id);
-      toast(t("line.approved"));
       setEditing(null);
       await load();
     } catch (e) {
@@ -115,7 +103,6 @@ export default function LinesPage() {
           <div key={l.id} className="card card-pad stack" style={{ gap: "var(--space-3)" }}>
             <div className="row-between">
               <span className="kpi-icon"><IconBus /></span>
-              <ApprovalBadge approved={l.approved} />
             </div>
             <div>
               <div className="section-title">{l.name}</div>
@@ -126,7 +113,6 @@ export default function LinesPage() {
             <div className="row gap-2 wrap">
               <Link to={p(`/lines/${l.id}/routes`)} className="btn btn-secondary btn-sm"><IconRoute />{t("action.viewRoutes")}<IconChevronEnd style={{ width: 14, height: 14 }} /></Link>
               {canManage && <button className="icon-btn brand" onClick={() => openEdit(l)} aria-label={`${t("action.edit")}: ${l.name}`}><IconEdit /></button>}
-              {canApprove && !l.approved && <button className="icon-btn" style={{ color: "var(--color-success)" }} onClick={() => approve(l)} aria-label={`${t("action.approve")}: ${l.name}`}><IconCheck /></button>}
             </div>
           </div>
         ))}
@@ -141,9 +127,6 @@ export default function LinesPage() {
             <>
               {editing !== "new" && canManage && (
                 <button className="btn btn-danger" style={{ marginInlineEnd: "auto" }} onClick={() => { setConfirmDel(editing); }}>{t("action.delete")}</button>
-              )}
-              {editing !== "new" && canApprove && !editing.approved && (
-                <button className="btn btn-success" onClick={() => approve(editing)}>{t("action.approve")}</button>
               )}
               <button className="btn btn-secondary" onClick={() => setEditing(null)}>{t("action.cancel")}</button>
               <button className="btn btn-brand" onClick={save}>{t("action.save")}</button>

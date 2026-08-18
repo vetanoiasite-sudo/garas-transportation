@@ -2,7 +2,7 @@
    Real calls to /User (GetUserList / AddUser / UpdateUser / DeleteUser).
    Maps the app's Role strings ↔ the backend's numeric transportation role ids. */
 import type { SystemUser, Role } from "@/lib/types";
-import { apiRaw, type PaginationHeader } from "@/lib/api/client";
+import { apiRaw, ApiError, type PaginationHeader } from "@/lib/api/client";
 
 export interface Paginated<T> {
   items: T[];
@@ -57,21 +57,36 @@ function toSystemUser(u: UserRow): SystemUser {
   };
 }
 
-/** GET /User/GetUserList — paginated login users (optionally filtered by role). */
+/** UserDDL — the row /User/GetUserList returns (under DDLList, not Data). */
+interface UserDDLRow {
+  ID?: number | string;
+  Name?: string;
+  Email?: string;
+  JobTitleName?: string;
+  Department?: string;
+  BranchName?: string;
+}
+
+/** GET /User/GetUserList — the login users of the current company.
+ *  Returns a DDL list (no pagination, no role filter) — role/status filtering
+ *  is done client-side by the callers. */
 export async function getUsers(query: { role?: Role; pageNo?: number; noOfItems?: number } = {}): Promise<Paginated<SystemUser>> {
   const pageNo = query.pageNo ?? 1;
   const noOfItems = query.noOfItems ?? 200;
-  const res = await apiRaw<UserRow[]>("GET", "/User/GetUserList", {
-    headers: {
-      PageNo: pageNo,
-      NoOfItems: noOfItems,
-      RoleId: query.role ? ROLE_TO_ID[query.role] : undefined,
-    },
-  });
-  const items = (res.Data ?? []).map(toSystemUser);
+  const res = (await apiRaw<unknown>("GET", "/User/GetUserList")) as { DDLList?: UserDDLRow[] };
+  const items: SystemUser[] = (res.DDLList ?? []).map((u) => ({
+    id: String(u.ID ?? ""),
+    name: u.Name ?? "",
+    email: u.Email ?? "",
+    mobile: "",
+    role: "reader",
+    roles: ["reader"],
+    active: true,
+  }));
+  void query;
   return {
     items,
-    pagination: res.PaginationHeader ?? { CurrentPage: pageNo, ItemsPerPage: noOfItems, TotalItems: items.length, TotalPages: 1 },
+    pagination: { CurrentPage: pageNo, ItemsPerPage: noOfItems, TotalItems: items.length, TotalPages: 1 },
   };
 }
 
@@ -82,37 +97,36 @@ const roleIdsBody = (roles: Role[]) => {
   return { RoleIds: ids, RoleId: ids[0] };
 };
 
-/** POST /User/AddUser — create a login user with one or more roles. Returns the new id. */
-export async function addUser(payload: Omit<SystemUser, "id"> & { password?: string }): Promise<string> {
-  const res = await apiRaw<unknown>("POST", "/User/AddUser", {
-    body: {
-      Name: payload.name,
-      Email: payload.email,
-      Mobile: payload.mobile,
-      Password: payload.password,
-      ...roleIdsBody(payload.roles.length ? payload.roles : [payload.role]),
-      Active: payload.active,
-    },
-  });
-  return String((res as { Id?: string | number }).Id ?? "");
-}
+/* The CoreApi has no AddUser/UpdateUser/DeleteUser. A login account is created
+   by granting an EXISTING HR employee access:
+     HrUser/CreateHrUser → HrUser/AddHrEmployeeToUser (email + password)
+   and roles are assigned through the HR module's EditEmployeeRole. Only the
+   first step is exposed here; the rest needs the HR module wired up. */
 
-/** POST /User/UpdateUser — edit a login user (profile + roles + status). */
-export async function updateUser(payload: SystemUser & { password?: string }): Promise<void> {
-  await apiRaw("POST", "/User/UpdateUser", {
-    body: {
-      Id: Number(payload.id),
-      Name: payload.name,
-      Email: payload.email,
-      Mobile: payload.mobile,
-      Password: payload.password || undefined,
-      ...roleIdsBody(payload.roles.length ? payload.roles : [payload.role]),
-      Active: payload.active,
-    },
+/** POST /HrUser/AddHrEmployeeToUser — grant an existing HR employee a login. */
+export async function grantLogin(hrUserId: string, email: string, password: string): Promise<void> {
+  await apiRaw("POST", "/HrUser/AddHrEmployeeToUser", {
+    body: { HrUserId: Number(hrUserId), Email: email, Password: password, ConfirmPass: password },
   });
 }
 
-/** POST /User/DeleteUser — deactivate a login user (Id header). */
-export async function deleteUser(id: string): Promise<void> {
-  await apiRaw("POST", "/User/DeleteUser", { headers: { Id: id } });
+const notSupported = () =>
+  Promise.reject(new ApiError("not-supported", "غير مدعوم في الـ API الحالي: أنشئ الموظف ثم امنحه صلاحية الدخول."));
+
+/** Not available on the CoreApi — see grantLogin above. */
+export function addUser(_payload: Omit<SystemUser, "id"> & { password?: string }): Promise<string> {
+  void _payload;
+  return notSupported() as Promise<string>;
+}
+
+/** Not available on the CoreApi — roles are managed by the HR module. */
+export function updateUser(_payload: SystemUser & { password?: string }): Promise<void> {
+  void _payload;
+  return notSupported() as Promise<void>;
+}
+
+/** Not available on the CoreApi. */
+export function deleteUser(_id: string): Promise<void> {
+  void _id;
+  return notSupported() as Promise<void>;
 }

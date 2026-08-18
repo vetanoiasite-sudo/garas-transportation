@@ -9,6 +9,7 @@ import type { Deduction } from "@/lib/types";
 import { getDeductions, downloadDeductionsExcel, addDeduction, updateDeduction, type DeductionInput } from "@/lib/services/deductions";
 import { formatDate } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
+import { getSuppliers } from "@/lib/services/suppliers";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import Dialog from "@/components/ui/Dialog";
@@ -87,8 +88,8 @@ export default function DeductionsPage() {
 
   const loadSuppliers = useCallback(async () => {
     try {
-      const res = await apiGet<SupplierRow[]>("getSuppliers", { PageNo: 1, NoOfItems: 200 });
-      setSupplierOptions((res.Data ?? []).map((s) => ({ value: String(s.Id), label: s.Name })));
+      const res = await getSuppliers({ pageNo: 1, noOfItems: 500 });
+      setSupplierOptions(res.items.map((s) => ({ value: s.id, label: s.name })));
     } catch (e) {
       toast(errMsg(e, t("ded.empty")), "error");
     }
@@ -184,7 +185,7 @@ function DeductionForm({ existing, supplierOptions, onClose, onSaved }: { existi
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiGet<RouteRow[]>("getAllTransportationRoute", { SupplierId: supplier });
+        const res = await apiGet<RouteRow[]>("getAllTransportationRoute", { SupplierId: supplier, PageNo: 1, NoOfItems: 500 });
         if (cancelled) return;
         const list = res.Data ?? [];
         setRouteRows(list);

@@ -12,6 +12,10 @@ export interface User {
   branch: string;
   token: string;
   companyName: string;
+  /** The AES-encrypted user id the login returns. Several CoreApi write
+   *  endpoints (e.g. Supplier/AddNewSupplier) take it as `CreatedBy` and
+   *  decrypt it server-side, so it has to be carried around as-is. */
+  userId?: string;
 }
 
 interface AuthCtx {
@@ -40,6 +44,7 @@ const ROLE_RANK: Role[] = ["super_admin", "transportation_admin", "hr_admin", "s
 
 interface LoginResponse {
   Data: string; // UserToken
+  UserID?: string; // AES-encrypted user id (CreatedBy on some write endpoints)
   Name?: string;
   UserName?: string; // legacy CoreApi name field
   BranchId?: number | null;
@@ -120,6 +125,7 @@ export function AuthProvider({
         branch: (lr.BranchId ?? lr.BranchID) != null ? String(lr.BranchId ?? lr.BranchID) : "",
         token: lr.Data,
         companyName,
+        userId: lr.UserID,
       };
       persist(u);
       return u;

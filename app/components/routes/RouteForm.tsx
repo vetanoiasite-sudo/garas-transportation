@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useToast } from "@/contexts/ToastContext";
 import { apiGet, apiRaw } from "@/lib/api/client";
+import { useDriverOptions } from "@/lib/hooks/useSuppliers";
+import { getSuppliers } from "@/lib/services/suppliers";
 import { addRoute, updateRoute, type RouteInput } from "@/lib/services/routes";
 import type { RouteItem } from "@/lib/types";
 import Dialog from "@/components/ui/Dialog";
@@ -71,23 +73,19 @@ export default function RouteForm({
     let alive = true;
     (async () => {
       try {
-        const [linesRes, vehiclesRes, suppliersRes, usersRes] = await Promise.all([
+        const [linesRes, vehiclesRes, suppliers, usersRes] = await Promise.all([
           apiGet<LineRow[]>("getAllTransportationLine", { PageNo: 1, NoOfItems: 200 }),
           apiGet<VehicleRow[]>("getAllTransportationVehicle", { PageNo: 1, NoOfItems: 200 }),
-          apiGet<SupplierRow[]>("getSuppliers", { PageNo: 1, NoOfItems: 200 }),
-          apiRaw<UserRow[]>("GET", "/User/GetAllUsers"),
+          getSuppliers({ pageNo: 1, noOfItems: 500 }),
+          apiRaw<unknown>("GET", "/User/GetUserList"),
         ]);
         if (!alive) return;
         setLineOptions((linesRes.Data ?? []).map((l) => ({ value: String(l.Id), label: l.Name })));
         setVehicleOptions((vehiclesRes.Data ?? []).map((v) => ({ value: String(v.Id), label: `${v.VehicleTypeName ?? ""} (${v.Capacity ?? 0})` })));
-        setSupplierOptions((suppliersRes.Data ?? []).map((s) => ({ value: String(s.Id), label: s.Name })));
-        // Supervisors come from the User table (login users with roles), NOT HrUser/passengers.
-        setSupervisorOptions((usersRes.Data ?? []).map((u) => ({ value: String(u.Id), label: u.Name })));
-        const contacts: Record<string, Option[]> = {};
-        for (const s of suppliersRes.Data ?? []) {
-          contacts[String(s.Id)] = (s.contacts ?? []).map((c) => ({ value: String(c.Id), label: c.Name }));
-        }
-        setContactsBySupplier(contacts);
+        setSupplierOptions(suppliers.items.map((s) => ({ value: s.id, label: s.name })));
+        // Supervisors come from the User table (login users), NOT HrUser/passengers.
+        const ddl = (usersRes as { DDLList?: { ID?: number | string; Name?: string }[] }).DDLList ?? [];
+        setSupervisorOptions(ddl.map((u) => ({ value: String(u.ID ?? ""), label: u.Name ?? "" })));
       } catch (e) {
         if (alive) toast(errMsg(e, t("empty.generic")), "error");
       }
@@ -95,7 +93,7 @@ export default function RouteForm({
     return () => { alive = false; };
   }, [toast, t]);
 
-  const driverOptions = useMemo(() => (supplier ? contactsBySupplier[supplier] ?? [] : []), [supplier, contactsBySupplier]);
+  const driverOptions = useDriverOptions(supplier, (e) => toast(errMsg(e, t("empty.generic")), "error"));
 
   const needFrom = routeType === "round" || routeType === "go";
   const needTo = routeType === "round" || routeType === "return";

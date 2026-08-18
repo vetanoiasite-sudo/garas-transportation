@@ -15,6 +15,7 @@ import {
   fileToBase64,
   type PassengerInput,
 } from "@/lib/services/passengers";
+import { openFileUrl } from "@/lib/download";
 import type { RouteOption } from "@/lib/services/passengers";
 import PageHeader from "@/components/ui/PageHeader";
 import { Field, Input, Select } from "@/components/ui/Field";
@@ -53,15 +54,7 @@ export default function PassengerProfilePage() {
   const onExportPassengers = async () => {
     setExcelBusy(true);
     try {
-      const blob = await downloadPassengersExport();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "passengers.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      openFileUrl(await downloadPassengersExport(), "passengers.xlsx");
     } catch (e) {
       toast(errMsg(e, t("pass.emptyList")), "error");
     } finally {
@@ -76,10 +69,10 @@ export default function PassengerProfilePage() {
     if (!file) return;
     setExcelBusy(true);
     try {
-      const base64 = await fileToBase64(file);
-      const { created, assigned, errors } = await uploadPassengersExcel(base64);
-      const suffix = errors.length ? ` — ${errors.length}` : "";
-      toast(`${t("pass.fileUploaded")} (${created}${assigned ? ` / ${assigned}` : ""})${suffix}`, errors.length ? "info" : "success");
+      // A URL comes back only when some rows failed — it points at an error log.
+      const { errorLogUrl } = await uploadPassengersExcel(file);
+      toast(t("pass.fileUploaded"), errorLogUrl ? "info" : "success");
+      if (errorLogUrl) openFileUrl(errorLogUrl);
       navigate(p("/passengers"));
     } catch (err) {
       toast(errMsg(err, t("pass.fileUploaded")), "error");

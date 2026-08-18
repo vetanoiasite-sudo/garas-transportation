@@ -15,7 +15,7 @@ export default function Topbar({ onMenu }: { onMenu?: () => void }) {
   const navigate = useNavigate();
 
   const initials = user?.name?.trim().charAt(0) ?? "؟";
-  // Only the approval group (super admin, via manage.users) receives notices.
+  // Only the approval group (super admin + transportation admin, via manage.users) receives notices.
   const showBell = can(user?.role, "manage.users");
   const [unread, setUnread] = useState(0);
 

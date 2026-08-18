@@ -12,8 +12,12 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("admin@garas.co");
-  const [password, setPassword] = useState("demo1234");
+  // The backend is multi-tenant: CompanyName picks which company database the
+  // login (and every later call) runs against, so the user must supply it.
+  // Remembered across sessions since a given user always signs into one company.
+  const [company, setCompany] = useState(() => localStorage.getItem("garas.company") ?? "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,13 +25,14 @@ export default function LoginPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!email || !password) {
+    if (!company || !email || !password) {
       setError(t("login.invalid"));
       return;
     }
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, company.trim());
+      localStorage.setItem("garas.company", company.trim());
       navigate(`/${locale}/dashboard`);
     } catch (err) {
       // Distinguish "can't reach the server" from genuinely bad credentials —
@@ -65,6 +70,11 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+
+          <div className="field">
+            <label className="label" htmlFor="company">{t("login.company")}</label>
+            <input id="company" className="input" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" placeholder={t("login.companyHint")} />
+          </div>
 
           <div className="field">
             <label className="label" htmlFor="email">{t("login.email")}</label>

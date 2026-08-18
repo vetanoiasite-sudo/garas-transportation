@@ -20,6 +20,7 @@ import SegmentedControl from "@/components/ui/SegmentedControl";
 import { IconPlus } from "@/components/ui/Icons";
 
 const periodLabel: Record<Period, string> = { go: "period.go", return: "period.return", both: "period.both" };
+const WEEKDAYS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 // Dropdown row shapes from /api/Transportation list endpoints.
@@ -216,7 +217,13 @@ function ExceptionForm({ routeOptions, onClose, onSaved }: { routeOptions: Optio
               <>
                 <input className="input" type="date" aria-label={t("filter.from")} value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ maxWidth: 180 }} />
                 <input className="input" type="date" aria-label={t("filter.to")} value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ maxWidth: 180 }} />
-                <input className="input" aria-label={t("exc.weekdays")} placeholder={t("exc.weekdays")} value={weekdays} onChange={(e) => setWeekdays(e.target.value)} style={{ maxWidth: 180 }} />
+                {/* The backend matches DayName against DateTime.ToString("dddd") —
+                    an invariant English name — so the value is fixed and only the
+                    label is localised. A free-text box never matched. */}
+                <select className="input" aria-label={t("exc.weekdays")} value={weekdays} onChange={(e) => setWeekdays(e.target.value)} style={{ maxWidth: 180 }}>
+                  <option value="">{t("exc.weekdays")}</option>
+                  {WEEKDAYS.map((d) => <option key={d} value={d}>{t(`day.${d.toLowerCase()}`)}</option>)}
+                </select>
               </>
             )}
           </div>

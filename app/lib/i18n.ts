@@ -16,7 +16,7 @@ export function dir(locale: Locale): "rtl" | "ltr" {
 type Dict = Record<string, string>;
 
 const ar: Dict = {
-  appName: "غراس للنقل",
+  appName: "جاراس للنقل",
   appTagline: "نظام إدارة نقل الموظفين",
 
   // nav
@@ -90,6 +90,8 @@ const ar: Dict = {
   // login
   "login.title": "تسجيل الدخول",
   "login.subtitle": "ادخل إلى نظام إدارة النقل",
+  "login.company": "اسم الشركة",
+  "login.companyHint": "مثال: garastest",
   "login.email": "البريد الإلكتروني",
   "login.password": "كلمة المرور",
   "login.remember": "تذكرني",
@@ -103,6 +105,7 @@ const ar: Dict = {
   "dash.lineCostReport": "تقرير تكلفة الخطوط",
   "dash.viewAttendance": "عرض الحضور",
   "dash.touchAttendance": "تسجيل حضور إلكتروني",
+  "dash.busAttendance": "حضور الاتوبيسات",
   "dash.allRoutes": "كل الخطوط",
 
   // filters
@@ -325,7 +328,7 @@ const ar: Dict = {
   "stmt.deductionSaved": "تم تسجيل الخصم",
   "stmt.saveDeduction": "حفظ الخصم",
   "stmt.invoicePreview": "معاينة فاتورة الطباعة",
-  "stmt.companyName": "غراس للنقل",
+  "stmt.companyName": "جاراس للنقل",
   "stmt.invoiceSubtitle": "فاتورة خدمات نقل",
   "stmt.item": "البند",
   "stmt.count": "العدد",
@@ -478,6 +481,24 @@ const ar: Dict = {
   "board.oneWay": "طريق واحد",
   "board.roundTrip": "ذهابًا وإيابًا",
   "board.routeTypes": "أنواع الخطوط",
+  "board.goWord": "ذهاب",
+  "board.returnWord": "عودة",
+  "board.oneWayGo": "طريق واحد ذهاب",
+  "board.oneWayReturn": "طريق واحد عودة",
+  "board.capacityPct": "النسبة المئوية من سعة الاتوبيس",
+  "board.usersPct": "النسبة المئوية من المستخدمين",
+  "busAtt.title": "حضور الاتوبيسات",
+  "busAtt.soon": "هذه الشاشة قيد الإنشاء وسيتم تفعيلها قريبًا.",
+  "pass.dashFiltered": "مفلتر بفلاتر لوحة المعلومات",
+  "action.clearFilter": "إزالة الفلتر",
+  "att.present": "حضر",
+  "day.saturday": "السبت",
+  "day.sunday": "الأحد",
+  "day.monday": "الاثنين",
+  "day.tuesday": "الثلاثاء",
+  "day.wednesday": "الأربعاء",
+  "day.thursday": "الخميس",
+  "day.friday": "الجمعة",
 
   common_of: "من",
   common_perPage: "لكل صفحة",
@@ -553,6 +574,8 @@ const en: Dict = {
 
   "login.title": "Sign In",
   "login.subtitle": "Access the transportation system",
+  "login.company": "Company name",
+  "login.companyHint": "e.g. garastest",
   "login.email": "Email",
   "login.password": "Password",
   "login.remember": "Remember me",
@@ -565,6 +588,7 @@ const en: Dict = {
   "dash.lineCostReport": "Line Cost Report",
   "dash.viewAttendance": "View Attendance",
   "dash.touchAttendance": "Electronic Touch Attendance",
+  "dash.busAttendance": "Bus Attendance",
   "dash.allRoutes": "All routes",
 
   "filter.supplier": "Supplier",
@@ -938,6 +962,24 @@ const en: Dict = {
   "board.oneWay": "One way",
   "board.roundTrip": "Round trip",
   "board.routeTypes": "Route types",
+  "board.goWord": "Go",
+  "board.returnWord": "Return",
+  "board.oneWayGo": "One-way go",
+  "board.oneWayReturn": "One-way return",
+  "board.capacityPct": "Bus capacity %",
+  "board.usersPct": "Users %",
+  "busAtt.title": "Bus Attendance",
+  "busAtt.soon": "This screen is under construction and will be available soon.",
+  "pass.dashFiltered": "Filtered by dashboard filters",
+  "action.clearFilter": "Clear filter",
+  "att.present": "Present",
+  "day.saturday": "Saturday",
+  "day.sunday": "Sunday",
+  "day.monday": "Monday",
+  "day.tuesday": "Tuesday",
+  "day.wednesday": "Wednesday",
+  "day.thursday": "Thursday",
+  "day.friday": "Friday",
 
   common_of: "of",
   common_perPage: "per page",

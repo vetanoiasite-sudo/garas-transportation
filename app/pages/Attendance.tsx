@@ -5,9 +5,10 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { useToast } from "@/contexts/ToastContext";
 import type { AttendanceRecord } from "@/lib/types";
 import { getAttendance, downloadAttendanceExcel } from "@/lib/services/attendance";
-import { saveBlob } from "@/lib/download";
+import { openFileUrl } from "@/lib/download";
 import { formatDate, formatDateTime } from "@/lib/datetime";
 import { apiGet } from "@/lib/api/client";
+import { useSupplierOptions, useDriverOptions } from "@/lib/hooks/useSuppliers";
 import PageHeader from "@/components/ui/PageHeader";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import Combobox from "@/components/ui/Combobox";
@@ -20,7 +21,6 @@ const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.messag
 
 // Backend dropdown row shapes (frozen PascalCase keys).
 interface LineRow { Id: number; Name: string }
-interface SupplierRow { Id: number; Name: string; contacts?: { Id: number; Name: string }[] }
 interface RouteRow { Id: number; NameOfRoute: string }
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -36,7 +36,6 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
 
   const [lineOpts, setLineOpts] = useState<LineRow[]>([]);
-  const [supplierOpts, setSupplierOpts] = useState<SupplierRow[]>([]);
   const [routeOpts, setRouteOpts] = useState<RouteRow[]>([]);
 
   const [line, setLine] = useState<string | undefined>();
@@ -55,8 +54,8 @@ export default function AttendancePage() {
   const onDownloadExcel = useCallback(async () => {
     setDownloading(true);
     try {
-      const blob = await downloadAttendanceExcel({ from, to, lineId: line, supplierId: supplier, serial: serial || undefined, routeId: route, employeeId: employeeId || undefined });
-      saveBlob(blob, "attendance.xlsx");
+      const url = await downloadAttendanceExcel({ from, to, lineId: line, supplierId: supplier, driverId: driver, serial: serial || undefined, routeId: route, employeeId: employeeId || undefined });
+      openFileUrl(url, "attendance.xlsx");
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
     } finally {
@@ -64,22 +63,19 @@ export default function AttendancePage() {
     }
   }, [from, to, line, supplier, serial, route, employeeId, toast, t]);
 
-  const driverOptions = useMemo(() => {
-    const s = supplierOpts.find((x) => String(x.Id) === supplier);
-    return (s?.contacts ?? []).map((c) => ({ value: String(c.Id), label: c.Name }));
-  }, [supplier, supplierOpts]);
+  const onLoadError = useCallback((e: unknown) => toast(errMsg(e, t("empty.generic")), "error"), [toast, t]);
+  const supplierOpts = useSupplierOptions(onLoadError);
+  const driverOptions = useDriverOptions(supplier, onLoadError);
 
   // Load the filter dropdowns once.
   useEffect(() => {
     (async () => {
       try {
-        const [ls, ss, rs] = await Promise.all([
+        const [ls, rs] = await Promise.all([
           apiGet<LineRow[]>("getAllTransportationLine", { PageNo: 1, NoOfItems: 500 }),
-          apiGet<SupplierRow[]>("getSuppliers", { PageNo: 1, NoOfItems: 500 }),
           apiGet<RouteRow[]>("getAllTransportationRoute", { PageNo: 1, NoOfItems: 500 }),
         ]);
         setLineOpts(ls.Data ?? []);
-        setSupplierOpts(ss.Data ?? []);
         setRouteOpts(rs.Data ?? []);
       } catch (e) {
         toast(errMsg(e, t("empty.generic")), "error");
@@ -91,7 +87,7 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAttendance({ from, to, lineId: line, supplierId: supplier, serial: serial || undefined, routeId: route, employeeId: employeeId || undefined });
+      const res = await getAttendance({ from, to, lineId: line, supplierId: supplier, driverId: driver, serial: serial || undefined, routeId: route, employeeId: employeeId || undefined });
       setRecords(res.items);
     } catch (e) {
       toast(errMsg(e, t("empty.generic")), "error");
@@ -102,13 +98,10 @@ export default function AttendancePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Driver + attended/absent are refined client-side (no dedicated server filters).
-  const driverName = driverOptions.find((d) => d.value === driver)?.label;
-  const rows = records.filter(
-    (r) =>
-      ((r.attended && attended) || (!r.attended && absent)) &&
-      (!driverName || r.driver === driverName)
-  );
+  // Attended/absent is refined client-side. The driver is NOT: this endpoint
+  // never projects supplierContactPersonName, so matching on it would empty the
+  // table — the chosen driver is passed to the server as a scope filter instead.
+  const rows = records.filter((r) => (r.attended && attended) || (!r.attended && absent));
 
   // Single day (from == to) → split into check-in / check-out columns.
   // A date range → one "attendance" column with the full history popup.
@@ -123,7 +116,6 @@ export default function AttendancePage() {
     { key: "route", header: t("filter.route") },
     { key: "supervisor", header: t("common.supervisor"), priority: "secondary" },
     { key: "supplier", header: t("filter.supplier"), priority: "secondary" },
-    { key: "driver", header: t("filter.driver"), priority: "secondary" },
   ];
 
   const singleDayColumns: Column<AttendanceRecord>[] = [

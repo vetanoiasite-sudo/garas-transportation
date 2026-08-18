@@ -100,10 +100,11 @@ function toBody(input: ExceptionInput): Record<string, unknown> {
     reasonException: input.reasonException,
     contactNumber: input.contactNumber,
     Period: input.Period,
-    FromDate: input.FromDate,
-    ToDate: input.ToDate,
+    // Empty strings fail DateTime? binding with a 400 — send nothing instead.
+    FromDate: input.FromDate || undefined,
+    ToDate: input.ToDate || undefined,
     DayName: input.DayName,
-    ExceptionDate: input.ExceptionDate,
+    ExceptionDate: input.ExceptionDate || undefined,
     Latitude: input.Latitude,
     Longtitud: input.Longtitud,
     TransportationVehicleRouteDirectionId:

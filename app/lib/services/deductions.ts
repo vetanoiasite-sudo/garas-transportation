@@ -16,7 +16,7 @@ interface DeductionRow {
   TransportationVehicleRouteName: string;
   TransportationVehicleRouteId: number;
   Serial: string;
-  Date: string;
+  DateOfDeduction: string; // RouteDeductionVM's field (there is no `Date`)
   CreationDate: string;
   DeductPerRound: number;
   Cause: string;
@@ -32,7 +32,7 @@ function toDeduction(d: DeductionRow): Deduction {
     routeName: d.TransportationVehicleRouteName ?? "",
     supplier: d.SupplierName ?? "",
     driver: d.SupplierContentPersonIdName || "—",
-    day: iso(d.Date),
+    day: iso(d.DateOfDeduction),
     amount: d.DeductPerRound ?? 0,
     createdBy: d.CreationName ?? "",
     createdAt: iso(d.CreationDate),

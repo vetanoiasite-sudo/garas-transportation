@@ -1,9 +1,12 @@
-/* Suppliers, statement & payments service — real calls to /api/Transportation.
-   Maps the backend's frozen PascalCase envelope keys → the app's Supplier /
-   StatementRow / SupplierPayment types (see backend suppliers.service.ts). */
+/* Suppliers, statement & payments service.
+   Supplier CRUD lives on the CoreApi's own /Supplier controller (AddNewSupplier,
+   GetSuppliersCards, GetSupplierDataResponse, GetSupplierContactPersonsResponse);
+   the money side (statement, rounds, payments) is on /api/Transportation.
+   Maps the backend's frozen PascalCase keys → the app's Supplier /
+   StatementRow / SupplierPayment types. */
 import type { Supplier, StatementRow, SupplierPayment, SupplierPaymentDistribution } from "@/lib/types";
-import { apiGet, apiPost, type PaginationHeader } from "@/lib/api/client";
-import { base64ToBlob } from "@/lib/download";
+import { apiGet, apiPost, apiRaw, currentUserId, type PaginationHeader, type Envelope } from "@/lib/api/client";
+import { fileUrl } from "@/lib/download";
 
 export interface Paginated<T> {
   items: T[];
@@ -14,59 +17,94 @@ const dateOnly = (s?: string): string => (s ? String(s).slice(0, 10) : "");
 
 /* ---- Suppliers ---- */
 
-interface ContactRow {
-  Id: number | string;
+/** GetSupplierContactPerson — the CoreApi's contact-person row. */
+interface ContactPersonRow {
+  ID?: number | string;
   Name?: string;
   Mobile?: string;
+  Email?: string;
+  Title?: string;
+  Active?: boolean;
 }
-interface SupplierRow {
-  Id: number | string;
+/** SupplierCardData — the list row returned by GetSuppliersCards. */
+interface SupplierCardRow {
+  Id?: number | string;
+  Name?: string;
+  Logo?: string;
+  CreationDate?: string;
+}
+/** SupplierData — the full record inside GetSupplierDataResponse. */
+interface SupplierDataRow {
+  Id?: number | string;
   Name?: string;
   Email?: string;
-  Phone?: string;
-  Mobile?: string;
-  Fax?: string;
-  Address?: string;
-  CreationDate?: string;
-  ActiveRoutes?: number;
-  contacts?: ContactRow[];
+  Website?: string;
+  RegistrationDate?: string;
+  Type?: string;
+  SupplierSerialCounter?: number;
+  Note?: string;
+  Rate?: number;
+  RegistrationNumber?: string;
+  CommercialRecord?: string;
+  TaxCard?: string;
+  FirstContractDate?: string;
 }
 
-function toSupplier(s: SupplierRow): Supplier {
+// The /Supplier controller returns its own response shapes (SuppliersList /
+// SuppliersData / SupplierContactPersonData) instead of the Data envelope.
+interface SuppliersCardsResponse { SuppliersList?: SupplierCardRow[]; PaginationHeader?: PaginationHeader }
+interface GetSupplierDataResponse {
+  SuppliersData?: SupplierDataRow;
+  SupplierContactPersonData?: ContactPersonRow[];
+  SupplierMobileData?: { ID?: number; Mobile?: string }[];
+  SupplierLandLineData?: { ID?: number; LandLine?: string }[];
+  SupplierFaxData?: { ID?: number; Fax?: string }[];
+  SupplierAddressData?: { Address?: string }[];
+}
+interface ContactPersonsResponse { SupplierContactPersonData?: ContactPersonRow[] }
+
+const toContact = (c: ContactPersonRow) => ({ id: String(c.ID ?? ""), name: c.Name ?? "", mobile: c.Mobile ?? "" });
+
+function cardToSupplier(s: SupplierCardRow): Supplier {
   return {
-    id: String(s.Id),
+    id: String(s.Id ?? ""),
     name: s.Name ?? "",
     createdAt: dateOnly(s.CreationDate),
-    phone: s.Phone || undefined,
-    mobile: s.Mobile || undefined,
-    email: s.Email || undefined,
-    fax: s.Fax || undefined,
-    address: s.Address || undefined,
-    activeRoutes: s.ActiveRoutes ?? 0,
-    contacts: (s.contacts ?? []).map((c) => ({ id: String(c.Id), name: c.Name ?? "", mobile: c.Mobile ?? "" })),
+    activeRoutes: 0,
+    contacts: [],
   };
 }
 
-/** GET getSuppliers — paginated suppliers (name/phone/mobile filters ride in headers). */
+/** GET /Supplier/GetSuppliersCards — paginated supplier cards (filters ride in headers). */
 export async function getSuppliers(
   query: { pageNo?: number; noOfItems?: number; name?: string; phone?: string; mobile?: string } = {},
 ): Promise<Paginated<Supplier>> {
   const pageNo = query.pageNo ?? 1;
   const noOfItems = query.noOfItems ?? 100;
-  const res = await apiGet<SupplierRow[]>("getSuppliers", {
-    PageNo: pageNo,
-    NoOfItems: noOfItems,
-    // Percent-encode so Arabic survives the HTTP header hop (backend decodes it) —
-    // a raw non-ASCII header value throws a ByteString error in fetch.
-    Name: query.name ? encodeURIComponent(query.name) : undefined,
-    Phone: query.phone,
-    Mobile: query.mobile,
-  });
-  const items = (res.Data ?? []).map(toSupplier);
+  const res = (await apiRaw<unknown>("GET", "/Supplier/GetSuppliersCards", {
+    headers: {
+      CurrentPage: pageNo,
+      NumberOfItemsPerPage: noOfItems,
+      // Percent-encode so Arabic survives the HTTP header hop (backend decodes it) —
+      // a raw non-ASCII header value throws a ByteString error in fetch.
+      SupplierName: query.name ? encodeURIComponent(query.name) : undefined,
+      Phone: query.phone,
+      Mobile: query.mobile,
+    },
+  })) as Envelope<unknown> & SuppliersCardsResponse;
+  const items = (res.SuppliersList ?? []).map(cardToSupplier);
   return {
     items,
     pagination: res.PaginationHeader ?? { CurrentPage: pageNo, ItemsPerPage: noOfItems, TotalItems: items.length, TotalPages: 1 },
   };
+}
+
+/** GET /Supplier/GetSupplierContactPersonsResponse — a supplier's drivers/contacts. */
+export async function getSupplierContacts(supplierId: string): Promise<{ id: string; name: string; mobile: string }[]> {
+  const res = (await apiRaw<unknown>("GET", "/Supplier/GetSupplierContactPersonsResponse", {
+    headers: { SupplierId: supplierId },
+  })) as Envelope<unknown> & ContactPersonsResponse;
+  return (res.SupplierContactPersonData ?? []).map(toContact);
 }
 
 /** A contact person as edited in the form (new ones have a temporary "c…" id). */
@@ -76,19 +114,7 @@ export interface SupplierContactInput {
   mobile?: string;
 }
 
-// Only real (numeric) ids identify an existing contact; temp "c…" ids are new.
-function toContactPayload(contacts: SupplierContactInput[] = []) {
-  return contacts
-    .filter((c) => c.name.trim())
-    .map((c) => ({
-      Id: c.id && /^\d+$/.test(c.id) ? Number(c.id) : undefined,
-      Name: c.name.trim(),
-      Mobile: c.mobile?.trim() || "",
-    }));
-}
-
-/** POST addSupplier — create a supplier (with contact persons); returns the new id. */
-export async function addSupplier(payload: {
+interface SupplierFormPayload {
   name: string;
   email?: string;
   phone?: string;
@@ -96,40 +122,145 @@ export async function addSupplier(payload: {
   fax?: string;
   address?: string;
   contacts?: SupplierContactInput[];
-}): Promise<string> {
-  const res = await apiPost<unknown>("addSupplier", {
-    Name: payload.name,
-    Email: payload.email ?? "",
-    Phone: payload.phone ?? "",
-    Mobile: payload.mobile ?? "",
-    Fax: payload.fax ?? "",
-    Address: payload.address ?? "",
-    Contacts: toContactPayload(payload.contacts),
-  });
-  return String((res as { Id?: string | number }).Id ?? "");
 }
 
-/** GET getSupplier — a single supplier + contacts (Id header). */
+/** Build the CoreApi SupplierData body. `Id` set → AddNewSupplier updates in place.
+ *
+ *  AddNewSupplier validates more than the form collects:
+ *   - `Type` and `CreatedBy` are mandatory; CreatedBy is the AES-ENCRYPTED user id
+ *     (the service does Decrypt(CreatedBy) → long), which login returns as UserID.
+ *   - `SupplierSpecialities` must be present: the land-line branch reads
+ *     `Request.SupplierSpecialities.Count` without a null check → NullReference.
+ *   - Address rows need CountryID/GovernorateID/AreaID, so a bare address is not
+ *     sent at all (the field is optional in this UI).
+ *   - Nested phone rows must echo their `ID` on edit, otherwise the duplicate
+ *     pre-check rejects the supplier's own number ("Line: 1") and, past that,
+ *     inserts a second row.
+ *   - `prev` carries the columns the update path overwrites unconditionally, so
+ *     editing from this screen doesn't erase notes/rating/serial/etc. */
+function supplierBody(payload: SupplierFormPayload, id?: string, prev?: SupplierExtras) {
+  return {
+    Id: id ? Number(id) : undefined,
+    Name: payload.name,
+    Email: payload.email ?? "",
+    Type: prev?.type || "Company",
+    CreatedBy: currentUserId(),
+    SupplierSpecialities: [],
+    SupplierMobiles: payload.mobile ? [{ ID: prev?.mobileId, Mobile: payload.mobile }] : [],
+    SupplierLandLines: payload.phone ? [{ ID: prev?.landLineId, LandLine: payload.phone }] : [],
+    SupplierFaxes: payload.fax ? [{ ID: prev?.faxId, Fax: payload.fax }] : [],
+    // Preserved so the unconditional update block doesn't null them out.
+    SupplierSerialCounter: prev?.serialCounter,
+    Note: prev?.note,
+    Rate: prev?.rate,
+    Website: prev?.website,
+    RegistrationNumber: prev?.registrationNumber,
+    CommercialRecord: prev?.commercialRecord,
+    TaxCard: prev?.taxCard,
+    FirstContractDate: prev?.firstContractDate,
+  };
+}
+
+/** Fields the edit path must echo back — see supplierBody. */
+interface SupplierExtras {
+  type?: string;
+  serialCounter?: number;
+  note?: string;
+  rate?: number;
+  website?: string;
+  registrationNumber?: string;
+  commercialRecord?: string;
+  taxCard?: string;
+  firstContractDate?: string;
+  mobileId?: number;
+  landLineId?: number;
+  faxId?: number;
+}
+
+// Only real (numeric) ids identify an existing contact; temp "c…" ids are new.
+// Title and Mobile are both mandatory server-side ("Line: 0, Title Is Mandatory"),
+// so rows without a mobile are skipped rather than failing the whole save.
+function contactPersonBody(supplierId: string, contacts: SupplierContactInput[] = []) {
+  return {
+    SupplierId: Number(supplierId),
+    SupplierContactPersons: contacts
+      .filter((c) => c.name.trim() && c.mobile?.trim())
+      .map((c) => ({
+        ID: c.id && /^\d+$/.test(c.id) ? Number(c.id) : undefined,
+        Name: c.name.trim(),
+        Title: "Driver",
+        Mobile: c.mobile!.trim(),
+        Active: true,
+      })),
+  };
+}
+
+/** POST /Supplier/AddNewSupplier — create a supplier (+ its contact persons). */
+export async function addSupplier(payload: SupplierFormPayload): Promise<string> {
+  const res = await apiRaw<unknown>("POST", "/Supplier/AddNewSupplier", { body: supplierBody(payload) });
+  const id = String((res as { ID?: string | number; Id?: string | number }).ID ?? (res as { Id?: string | number }).Id ?? "");
+  if (id && payload.contacts?.length) {
+    await apiRaw("POST", "/Supplier/AddNewSupplierContactPerson", { body: contactPersonBody(id, payload.contacts) });
+  }
+  return id;
+}
+
+/** GET /Supplier/GetSupplierDataResponse — one supplier + contacts/phones. */
 export async function getSupplier(id: string): Promise<Supplier | undefined> {
-  const res = await apiGet<SupplierRow | null>("getSupplier", { Id: id });
-  return res.Data ? toSupplier(res.Data) : undefined;
+  const res = (await apiRaw<unknown>("GET", "/Supplier/GetSupplierDataResponse", {
+    headers: { SupplierId: id },
+  })) as Envelope<unknown> & GetSupplierDataResponse;
+  const d = res.SuppliersData;
+  if (!d) return undefined;
+  return {
+    id: String(d.Id ?? id),
+    name: d.Name ?? "",
+    createdAt: dateOnly(d.RegistrationDate),
+    email: d.Email || undefined,
+    mobile: res.SupplierMobileData?.[0]?.Mobile || undefined,
+    phone: res.SupplierLandLineData?.[0]?.LandLine || undefined,
+    fax: res.SupplierFaxData?.[0]?.Fax || undefined,
+    address: res.SupplierAddressData?.[0]?.Address || undefined,
+    activeRoutes: 0,
+    contacts: (res.SupplierContactPersonData ?? []).map(toContact),
+  };
 }
 
-/** POST updateSupplier — edit a supplier (and sync its contact persons). */
-export async function updateSupplier(id: string, payload: {
-  name: string; email?: string; phone?: string; mobile?: string; fax?: string; address?: string;
-  contacts?: SupplierContactInput[];
-}): Promise<void> {
-  await apiPost("updateSupplier", {
-    Id: Number(id),
-    Name: payload.name,
-    Email: payload.email ?? "",
-    Phone: payload.phone ?? "",
-    Mobile: payload.mobile ?? "",
-    Fax: payload.fax ?? "",
-    Address: payload.address ?? "",
-    Contacts: toContactPayload(payload.contacts),
-  });
+/** POST /Supplier/AddNewSupplier with an Id — edits in place, then syncs contacts.
+ *  The update path overwrites every column and re-keys the phone rows, so the
+ *  current record is read first and its untouched fields are echoed back. */
+export async function updateSupplier(id: string, payload: SupplierFormPayload): Promise<void> {
+  const prev = await getSupplierExtras(id);
+  await apiRaw("POST", "/Supplier/AddNewSupplier", { body: supplierBody(payload, id, prev) });
+  if (payload.contacts?.length) {
+    await apiRaw("POST", "/Supplier/AddNewSupplierContactPerson", { body: contactPersonBody(id, payload.contacts) });
+  }
+}
+
+/** Read the fields the update path would otherwise wipe (see supplierBody). */
+async function getSupplierExtras(id: string): Promise<SupplierExtras> {
+  try {
+    const res = (await apiRaw<unknown>("GET", "/Supplier/GetSupplierDataResponse", {
+      headers: { SupplierId: id },
+    })) as Envelope<unknown> & GetSupplierDataResponse;
+    const d = (res.SuppliersData ?? {}) as SupplierDataRow;
+    return {
+      type: d.Type,
+      serialCounter: d.SupplierSerialCounter,
+      note: d.Note,
+      rate: d.Rate,
+      website: d.Website,
+      registrationNumber: d.RegistrationNumber,
+      commercialRecord: d.CommercialRecord,
+      taxCard: d.TaxCard,
+      firstContractDate: d.FirstContractDate,
+      mobileId: res.SupplierMobileData?.[0]?.ID,
+      landLineId: res.SupplierLandLineData?.[0]?.ID,
+      faxId: res.SupplierFaxData?.[0]?.ID,
+    };
+  } catch {
+    return {};
+  }
 }
 
 /* ---- Monthly account statement ---- */
@@ -165,7 +296,9 @@ export async function getMonthlyStatement(
   });
   const items = (res.Data ?? []).map(
     (r, i): StatementRow => ({
-      id: r.AccountId != null ? String(r.AccountId) : `stmt${i}`,
+      // AccountId is never assigned server-side (always 0), so a composite
+      // key is used instead — otherwise every row shares the same React key.
+      id: `${r.SupplierId ?? "s"}-${r.MonthNum ?? i}`,
       month: Number(r.MonthNum) || query.month || 0,
       // Backend does not return the year on each row; fall back to the query year.
       year: query.year ?? 0,
@@ -241,14 +374,14 @@ export async function getSupplierRounds(
 /** GET AccountsAllMonthsForSupplierExcel — the filtered account statement as an .xlsx Blob. */
 export async function downloadStatementExcel(
   query: { supplierId?: string; routeId?: string; month?: number; year?: number } = {},
-): Promise<Blob> {
+): Promise<string> {
   const res = await apiGet<string>("AccountsAllMonthsForSupplierExcel", {
     Year: query.year,
     Month: query.month,
     SupplierId: query.supplierId,
     RouteId: query.routeId,
   });
-  return base64ToBlob(res.Data ?? "");
+  return fileUrl(res.Data);
 }
 
 /* ---- Supplier payments ---- */
@@ -272,7 +405,14 @@ interface PaymentRow {
 
 /** GET getAllSupplierPayment — payments (with advance distribution) for a supplier. */
 export async function getPayments(supplierId?: string): Promise<SupplierPayment[]> {
-  const res = await apiGet<PaymentRow[]>("getAllSupplierPayment", { SupplierId: supplierId });
+  // This endpoint pages server-side: with no PageNo/NoOfItems the page size is 0,
+  // so it answers TotalItems: N but Data: [] — the payment you just added is
+  // stored, it simply never comes back.
+  const res = await apiGet<PaymentRow[]>("getAllSupplierPayment", {
+    SupplierId: supplierId,
+    PageNo: 1,
+    NoOfItems: 500,
+  });
   return (res.Data ?? []).map((p, i): SupplierPayment => {
     const distribution: SupplierPaymentDistribution[] = (p.DistributionSupplierPayments ?? []).map((d) => ({
       month: Number(d.MonthNum) || 0,

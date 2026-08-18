@@ -10,6 +10,7 @@ import AppShell from "@/components/layout/AppShell";
 import LoginPage from "@/pages/Login";
 import DashboardPage from "@/pages/Dashboard";
 import AttendancePage from "@/pages/Attendance";
+import BusAttendancePage from "@/pages/BusAttendance";
 import LinesPage from "@/pages/Lines";
 import LineRoutesPage from "@/pages/LineRoutes";
 import RouteDetailPage from "@/pages/RouteDetail";
@@ -76,6 +77,7 @@ export const router = makeRouter([
         children: [
           { path: "dashboard", element: <DashboardPage /> },
           { path: "attendance", element: <AttendancePage /> },
+          { path: "bus-attendance", element: <BusAttendancePage /> },
           { path: "lines", element: <LinesPage /> },
           { path: "lines/:id/routes", element: <LineRoutesPage /> },
           { path: "lines/:id/routes/:routeId", element: <RouteDetailPage /> },

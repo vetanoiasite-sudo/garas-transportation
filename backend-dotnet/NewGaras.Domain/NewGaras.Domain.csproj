@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Helper\GarasContext.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+
+    <PackageReference Include="AutoMapper" Version="13.0.1" />
+
+    <PackageReference Include="ClosedXML" Version="0.102.3" />
+
+    <PackageReference Include="EPPlus" Version="7.1.2" />
+
+    <PackageReference Include="ExcelDataReader" Version="3.8.0" />
+
+    <PackageReference Include="ExcelDataReader.DataSet" Version="3.8.0" />
+
+    <PackageReference Include="MailKit" Version="4.4.0" />
+
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.66.1" />
+
+    <PackageReference Include="Quartz" Version="3.18.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NewGaras.Infrastructure\NewGaras.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="D:\Projects\NewGARASAPICore-GIT\garas-core-api\NewGarasAPI\NewGaras.Domain\Services\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="D:\Projects\NewGARASAPICore-GIT\garas-core-api\NewGarasAPI\NewGaras.Domain\Services\.editorconfig" />
+  </ItemGroup>
+
+</Project>

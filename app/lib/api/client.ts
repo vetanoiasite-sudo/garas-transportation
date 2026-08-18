@@ -36,16 +36,22 @@ export class ApiError extends Error {
   }
 }
 
-function readAuth(): { companyName?: string; token?: string } {
+function readAuth(): { companyName?: string; token?: string; userId?: string } {
   if (typeof document === "undefined") return {};
   const raw = document.cookie.split("; ").find((c) => c.startsWith(`${AUTH_COOKIE}=`))?.split("=")[1];
   if (!raw) return {};
   try {
     const u = JSON.parse(decodeURIComponent(raw));
-    return { companyName: u.companyName, token: u.token };
+    return { companyName: u.companyName, token: u.token, userId: u.userId };
   } catch {
     return {};
   }
+}
+
+/** The signed-in user's AES-encrypted id — some write endpoints want it in the
+ *  body (`CreatedBy`) and decrypt it server-side. */
+export function currentUserId(): string | undefined {
+  return readAuth().userId;
 }
 
 /** Session-expiry codes (see backend §3.2). Matching Err-P2 also catches Err-P200. */
@@ -127,7 +133,48 @@ export function apiGet<T>(action: string, headers?: HeaderMap): Promise<Envelope
 export function apiPost<T>(action: string, body?: unknown, headers?: HeaderMap): Promise<Envelope<T>> {
   return request<T>("POST", `/api/Transportation/${action}`, { body, headers });
 }
-/** Call an arbitrary path (e.g. /User/Login, /User/GetAllUsers). */
+/** Call an arbitrary path (e.g. /User/Login, /Supplier/GetSuppliersCards). */
 export function apiRaw<T>(method: "GET" | "POST", path: string, opts: { headers?: HeaderMap; body?: unknown; auth?: boolean } = {}): Promise<Envelope<T>> {
   return request<T>(method, path, opts);
+}
+
+/** Flatten a nested object into ASP.NET model-binding form keys (`a.b`, `a[0].c`). */
+function appendForm(form: FormData, value: unknown, prefix = ""): void {
+  if (value === undefined || value === null) return;
+  if (value instanceof File || value instanceof Blob) {
+    form.append(prefix, value);
+  } else if (Array.isArray(value)) {
+    value.forEach((v, i) => appendForm(form, v, `${prefix}[${i}]`));
+  } else if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      appendForm(form, v, prefix ? `${prefix}.${k}` : k);
+    }
+  } else {
+    form.append(prefix, String(value));
+  }
+}
+
+/** POST a multipart/form-data action — the CoreApi's [FromForm] endpoints
+ *  (CreateHrUser, CreateHrUserWithAllRoutes, EditHrEmployee …). */
+export async function apiForm<T>(path: string, payload: Record<string, unknown>): Promise<Envelope<T>> {
+  const form = new FormData();
+  appendForm(form, payload);
+  const { companyName, token } = readAuth();
+  const headers: Record<string, string> = { Accept: "application/json" }; // no Content-Type: the browser sets the boundary
+  if (companyName) headers.CompanyName = companyName;
+  if (token) headers.UserToken = token;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/api/Transportation/${path}`}`, { method: "POST", headers, body: form });
+  } catch {
+    throw new ApiError("network", "تعذّر الاتصال بالخادم");
+  }
+  const json = (await res.json().catch(() => null)) as Envelope<T> | null;
+  if (!json || typeof json.Result !== "boolean") throw new ApiError("bad-response", `استجابة غير متوقعة (${res.status})`);
+  if (!json.Result) {
+    const first = (json.Errors ?? [])[0];
+    throw new ApiError(first?.ErrorCode ?? "error", first?.ErrorMSG ?? "حدث خطأ");
+  }
+  return json;
 }
