@@ -366,3 +366,85 @@ WorkingHours
 | ProAuto_AccountTreeTEMP | 99 |
 | AdvanciedTypeSettingCSV | 83 |
 | … | باقي 99 جدول |
+
+
+---
+
+## ما تم حذفه فعليًا (2026-08-18)
+
+حُذف **52** جدول فقط — وهي التي اجتازت **ثلاثة** شروط معًا:
+
+1. فاضية (صفر صفوف)
+2. مفيش أي مفتاح أجنبي بيشاور عليها
+3. **اسمها مش موجود في أي مكان في كود C#** — ده الشرط الإضافي اللي ضيّق القائمة
+   من 202 إلى 52. أُضيف بعد ما اكتشفنا إن `UserSession` ظهر "غير مستخدم"
+   في التحليل الأول رغم إن الكود بيستخدمه فعلًا.
+
+كلها من موديولات مالهاش علاقة بالنقل: BOM، الفواتير الإلكترونية، المشتريات،
+شؤون الموظفين، المشاريع.
+
+```
+﻿BOMAttachments
+BOMHistory
+BOMImages
+BOMLibrary
+BOMPartitionAttachments
+BOMPartitionHistory
+BOMPartitionItemAttachments
+BOMProduct
+ClientNATIONAL
+EInvoiceAttachment
+EInvoiceCompanyActivity
+EInvoiceSetting
+HRCustodyReportAttachment
+HRDeductionRewarding
+HREmployeeAttachment
+HRLoan
+HRUserWarning
+InventoryItemUOM
+InvoiceCNAndDN
+POApprovalStatus
+POApprovalUser
+POFinalSelecteSupplier
+PricingBOM
+ProjectInstallationBOQ
+ProjectTMAssignUser
+ProjectTMAttachment
+ProjectTMImpDate
+ProjectTMRevision
+ProjectTMSprint
+PRSupplierOfferItem
+PuchasePOShipment
+PurchaseImportPOSetting
+PurchasePOAmountPaymentMethod
+PurchasePOInactiveTask
+PurchasePOInvoiceCalculatedShipmentValue
+PurchasePOInvoiceClosedPayment
+PurchasePOInvoiceDeduction
+PurchasePOInvoiceExtraFees
+PurchasePOInvoiceFinalExpensis
+PurchasePOInvoiceNotIncludedTax
+PurchasePOInvoiceTaxIncluded
+PurchasePOInvoiceTotalOrderCustomFee
+PurchasePOInvoiceUnloadingFee
+PurchasePOPaymentSwift
+PurchasePOPdf
+PurchasePOPdfEditHistory
+PurchasePOPdfTemplate
+PurchasePOShipmentDocuments
+Region
+ReportCCGroup
+ReportCCUser
+Sheet2$
+```
+
+**نسخة احتياطية قبل الحذف:** `C:\SqlRestore\GARASElWaseem-before-cleanup.bak`
+
+**التحقق بعد الحذف:** تسجيل الدخول + 9 endpoints رئيسية (لوحة المعلومات، الخطوط،
+محطات التجمع، المركبات، أنواع المركبات، الخصومات، إعادة التسعير، تقرير التكاليف،
+دفعات الموردين) كلها رجّعت `Result: true`، ولوحة المعلومات بنفس الأرقام.
+
+### لم يُحذف
+
+- **150 جدول فاضي** اسمه بيظهر في الكود أو عليه مفاتيح أجنبية — الحذف ممكن يكسر حاجة.
+- **139 جدول فيها بيانات حقيقية** (فواتير، مخازن، قيود يومية…) — الحذف هنا خسارة بيانات.
